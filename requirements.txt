@@ -1,0 +1,12 @@
+tensorflow>=2.10
+numpy
+pillow
+opencv-python
+fastapi
+uvicorn
+streamlit
+scikit-learn
+albumentations
+pydantic
+matplotlib
+tqdm

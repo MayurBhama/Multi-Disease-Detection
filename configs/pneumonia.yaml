@@ -1,0 +1,64 @@
+dataset:
+  name: "pneumonia"
+
+  raw_dir: "data/raw/pneumonia"
+  test_dir: "data/raw/pneumonia_test"
+
+  image_size: [256, 256]
+  batch_size: 32
+  validation_split: 0.1
+  seed: 123
+
+augmentation:
+  enabled: true
+
+  # MEDICAL-SAFE AUGMENTATION ONLY
+  rotation: 0        # do NOT rotate X-rays
+  width_shift: 0.05
+  height_shift: 0.05
+  zoom: 0.05
+  horizontal_flip: false
+  brightness_range: false
+  contrast: false
+  random_crop: false
+
+model:
+  architecture: "xception"
+  pretrained_weights: "imagenet"
+
+  # FIRST train FULLY FROZEN
+  trainable_layers: 0  
+
+  dense_units_1: 256
+  dropout_1: 0.4
+
+  dense_units_2: 64
+  dropout_2: 0.3
+
+  output_activation: "sigmoid"
+
+training:
+  optimizer: "adamax"
+  learning_rate: 0.0005
+  epochs: 25
+  early_stopping_patience: 5
+
+  lr_scheduler: true
+  reduce_lr_factor: 0.3
+  reduce_lr_patience: 2
+
+paths:
+  model_dir: "models/pneumonia"
+  model_filename: "pneumonia_xception.h5"
+  mlflow_experiment: "Pneumonia_Training"
+
+logging:
+  mlflow_tracking_uri: "file:./mlruns"
+
+fine_tuning:
+  enabled: true
+  unfreeze_after_epochs: 5
+  trainable_layers: 30   # unfreeze last 30 layers only after head is trained
+
+class_weights:
+  enabled: true
