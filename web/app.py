@@ -118,171 +118,175 @@ if not is_healthy:
 
 
 # =====================================================
-# SINGLE IMAGE MODE
+# SINGLE IMAGE MODE - FULL WIDTH LAYOUT
 # =====================================================
 if not batch_mode:
-    col1, col2 = st.columns([1, 1])
+    # Upload Section
+    st.markdown("### Upload Image")
     
-    with col1:
-        st.markdown("### Upload Image")
+    upload_col, preview_col = st.columns([2, 1])
+    
+    with upload_col:
         uploaded_file = st.file_uploader(
             "Drag and drop or click to upload",
             type=["png", "jpg", "jpeg", "bmp"],
             help="Supported formats: PNG, JPG, JPEG, BMP (max 10MB)"
         )
-        
-        if uploaded_file:
-            # Validate
-            is_valid, error_msg = validate_image(uploaded_file)
-            if not is_valid:
-                st.error(error_msg)
-            else:
-                # Show preview (smaller size)
-                st.image(uploaded_file, caption="Uploaded Image", width=300)
-                
-                # Analyze button
-                if st.button("Analyze Image", type="primary", use_container_width=True):
-                    with st.spinner("Analyzing image..."):
-                        # Get file bytes
-                        uploaded_file.seek(0)
-                        image_bytes = uploaded_file.read()
-                        
-                        # Call API
-                        success, result = st.session_state.api_client.predict(
-                            image_bytes=image_bytes,
-                            filename=uploaded_file.name,
-                            disease_type=disease_type,
-                            generate_gradcam=generate_gradcam
-                        )
-                        
-                        if success:
-                            st.session_state.prediction_result = result
-                        else:
-                            st.error(result.get('error', 'Prediction failed'))
     
-    with col2:
-        st.markdown("### Results")
+    with preview_col:
+        if uploaded_file:
+            st.image(uploaded_file, caption="Preview", width=150)
+    
+    if uploaded_file:
+        # Validate
+        is_valid, error_msg = validate_image(uploaded_file)
+        if not is_valid:
+            st.error(error_msg)
+        else:
+            # Analyze button
+            if st.button("Analyze Image", type="primary"):
+                with st.spinner("Analyzing image..."):
+                    # Get file bytes
+                    uploaded_file.seek(0)
+                    image_bytes = uploaded_file.read()
+                    
+                    # Call API
+                    success, result = st.session_state.api_client.predict(
+                        image_bytes=image_bytes,
+                        filename=uploaded_file.name,
+                        disease_type=disease_type,
+                        generate_gradcam=generate_gradcam
+                    )
+                    
+                    if success:
+                        st.session_state.prediction_result = result
+                    else:
+                        st.error(result.get('error', 'Prediction failed'))
+    
+    # =====================================================
+    # RESULTS SECTION - FULL WIDTH
+    # =====================================================
+    result = st.session_state.prediction_result
+    
+    if result:
+        st.divider()
+        st.markdown("## Analysis Results")
         
-        result = st.session_state.prediction_result
+        # Confidence level
+        confidence = result.get("confidence", 0)
+        predicted_class = result.get("predicted_class", "N/A")
         
-        if result:
-            # Confidence level
-            confidence = result.get("confidence", 0)
+        # Low confidence warning
+        if confidence < 0.5:
+            st.warning("Low Confidence Prediction - Consider manual review by a specialist")
+        
+        # Main Metrics Row
+        metric_col1, metric_col2, metric_col3 = st.columns(3)
+        with metric_col1:
+            st.metric("Predicted Condition", predicted_class)
+        with metric_col2:
+            st.metric("Confidence", format_confidence(confidence))
+        with metric_col3:
+            disease_names = {"brain_mri": "Brain MRI", "pneumonia": "Chest X-Ray", "retina": "Retinal"}
+            st.metric("Analysis Type", disease_names.get(disease_type, disease_type))
+        
+        st.divider()
+        
+        # Two column layout for details
+        detail_col, visual_col = st.columns([1, 1])
+        
+        with detail_col:
+            # AI Interpretation
+            st.markdown("### AI Interpretation")
             
-            # Low confidence warning
-            if confidence < 0.5:
-                st.warning("Low Confidence Prediction - Consider manual review")
+            disease_info = get_disease_info(disease_type)
+            pred_class_key = predicted_class.lower().replace(" ", "_")
             
-            # Metrics
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.metric("Predicted Class", result.get("predicted_class", "N/A"))
-            with col_b:
-                st.metric("Confidence", format_confidence(confidence))
+            medical_details = disease_info.get("medical_details", {})
+            class_info = None
+            for key, value in medical_details.items():
+                if key.lower() == pred_class_key or key.lower().replace("_", "") == pred_class_key.replace("_", ""):
+                    class_info = value
+                    break
             
-            st.divider()
+            if class_info:
+                # Generate AI interpretation
+                interpretation = f"""
+The AI model analyzed the uploaded {disease_names.get(disease_type, 'medical')} image and detected patterns 
+consistent with **{predicted_class}** with {format_confidence(confidence)} confidence.
+
+**Why this prediction?**
+{class_info.get('description', '')}
+
+**Clinical Significance:**
+- **Severity Level:** {class_info.get('severity', 'Unknown')}
+- **Prevalence:** {class_info.get('prevalence', 'N/A')}
+
+**Recommended Action:**
+{class_info.get('recommendation', 'Consult a healthcare professional for proper evaluation.')}
+"""
+                st.markdown(interpretation)
+            else:
+                st.info(f"Detailed information for '{predicted_class}' is not available.")
             
-            # Probability table using native Streamlit
-            st.markdown("**Class Probabilities**")
+            # Probability Distribution
+            st.markdown("### Probability Distribution")
             probs = result.get("probabilities", {})
             
-            # Create dataframe for probabilities
-            prob_data = []
-            for class_name, prob in sorted(probs.items(), key=lambda x: -x[1]):
-                prob_data.append({
-                    "Class": class_name,
-                    "Probability": f"{prob * 100:.1f}%",
-                    "Score": prob
-                })
-            
-            if prob_data:
+            if probs:
+                prob_data = []
+                for class_name, prob in sorted(probs.items(), key=lambda x: -x[1]):
+                    prob_data.append({
+                        "Class": class_name,
+                        "Probability": f"{prob * 100:.1f}%",
+                        "Score": prob
+                    })
+                
                 prob_df = pd.DataFrame(prob_data)
-                # Show as bar chart
-                st.bar_chart(prob_df.set_index("Class")["Score"])
-                # Show as table
+                st.bar_chart(prob_df.set_index("Class")["Score"], height=200)
                 st.dataframe(
                     prob_df[["Class", "Probability"]], 
                     use_container_width=True,
                     hide_index=True
                 )
-            
-            # Medical Information Section
-            st.divider()
-            st.markdown("**Medical Information**")
-            
-            disease_info = get_disease_info(disease_type)
-            predicted_class = result.get("predicted_class", "").lower().replace(" ", "_")
-            
-            medical_details = disease_info.get("medical_details", {})
-            # Try to find matching key (case-insensitive)
-            class_info = None
-            for key, value in medical_details.items():
-                if key.lower() == predicted_class or key.lower().replace("_", "") == predicted_class.replace("_", ""):
-                    class_info = value
-                    break
-            
-            if class_info:
-                # Severity indicator
-                severity = class_info.get("severity", "Unknown")
-                severity_colors = {
-                    "None": "green",
-                    "Low": "green", 
-                    "Low to Moderate": "orange",
-                    "Moderate": "orange",
-                    "Moderate to High": "red",
-                    "High": "red",
-                    "Critical": "red"
-                }
-                sev_color = severity_colors.get(severity, "gray")
-                
-                st.markdown(f"**Severity:** :{sev_color}[{severity}]")
-                st.markdown(f"**Description:** {class_info.get('description', 'N/A')}")
-                st.markdown(f"**Recommendation:** {class_info.get('recommendation', 'N/A')}")
-                if class_info.get("prevalence") and class_info.get("prevalence") != "N/A":
-                    st.caption(f"Prevalence: {class_info.get('prevalence')}")
-            
-            # Grad-CAM
+        
+        with visual_col:
+            # Grad-CAM Visualization
             if generate_gradcam and result.get("gradcam_url"):
-                st.divider()
-                st.markdown("**Grad-CAM Visualization**")
+                st.markdown("### Grad-CAM Visualization")
                 
                 gradcam_url = result["gradcam_url"]
                 
-                # Try local file first
                 if gradcam_url.startswith("/static/"):
-                    # Convert /static/gradcam/... to outputs/gradcam/...
                     local_path = gradcam_url.replace("/static/", "outputs/")
-                    # Get project root
                     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                     full_path = os.path.join(project_root, local_path.replace("/", os.sep))
                     
                     if os.path.exists(full_path):
-                        st.image(full_path, caption="Model Attention Heatmap", width=400)
+                        st.image(full_path, caption="Model Attention Heatmap", use_container_width=True)
                     else:
-                        # Try API
                         gradcam_bytes = st.session_state.api_client.get_gradcam_image(gradcam_url)
                         if gradcam_bytes:
-                            st.image(gradcam_bytes, caption="Model Attention Heatmap", width=400)
+                            st.image(gradcam_bytes, caption="Model Attention Heatmap", use_container_width=True)
                         else:
-                            st.info(f"Grad-CAM image not found at: {full_path}")
-                else:
-                    st.info("Grad-CAM URL format not recognized")
+                            st.info("Grad-CAM image not available")
                 
                 # Grad-CAM Interpretation Guide
                 gradcam_guide = get_gradcam_interpretation()
-                with st.expander("Grad-CAM Interpretation Guide"):
-                    st.markdown(f"**{gradcam_guide['title']}**")
+                with st.expander("How to Read Grad-CAM"):
                     st.markdown(gradcam_guide['description'])
                     st.markdown("**Color Legend:**")
                     for color, meaning in gradcam_guide['colors'].items():
                         st.markdown(f"- **{color}:** {meaning}")
                     st.markdown(f"**Clinical Note:** {gradcam_guide['clinical_note']}")
                     st.caption(gradcam_guide['disclaimer'])
-                    
+            
             elif generate_gradcam:
-                st.info("Grad-CAM not generated. Check API response.")
-        else:
-            st.info("Upload an image and click 'Analyze' to see results")
+                st.markdown("### Grad-CAM Visualization")
+                st.info("Grad-CAM not generated. Try re-analyzing the image.")
+    
+    else:
+        st.info("Upload an image and click 'Analyze' to see results")
 
 
 # =====================================================
