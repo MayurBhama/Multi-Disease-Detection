@@ -15,7 +15,8 @@ from api_client import (
     APIClient, 
     format_confidence, 
     validate_image, 
-    get_disease_info
+    get_disease_info,
+    get_gradcam_interpretation
 )
 from styles import (
     get_custom_css, 
@@ -205,6 +206,41 @@ if not batch_mode:
                     hide_index=True
                 )
             
+            # Medical Information Section
+            st.divider()
+            st.markdown("**Medical Information**")
+            
+            disease_info = get_disease_info(disease_type)
+            predicted_class = result.get("predicted_class", "").lower().replace(" ", "_")
+            
+            medical_details = disease_info.get("medical_details", {})
+            # Try to find matching key (case-insensitive)
+            class_info = None
+            for key, value in medical_details.items():
+                if key.lower() == predicted_class or key.lower().replace("_", "") == predicted_class.replace("_", ""):
+                    class_info = value
+                    break
+            
+            if class_info:
+                # Severity indicator
+                severity = class_info.get("severity", "Unknown")
+                severity_colors = {
+                    "None": "green",
+                    "Low": "green", 
+                    "Low to Moderate": "orange",
+                    "Moderate": "orange",
+                    "Moderate to High": "red",
+                    "High": "red",
+                    "Critical": "red"
+                }
+                sev_color = severity_colors.get(severity, "gray")
+                
+                st.markdown(f"**Severity:** :{sev_color}[{severity}]")
+                st.markdown(f"**Description:** {class_info.get('description', 'N/A')}")
+                st.markdown(f"**Recommendation:** {class_info.get('recommendation', 'N/A')}")
+                if class_info.get("prevalence") and class_info.get("prevalence") != "N/A":
+                    st.caption(f"Prevalence: {class_info.get('prevalence')}")
+            
             # Grad-CAM
             if generate_gradcam and result.get("gradcam_url"):
                 st.divider()
@@ -231,6 +267,18 @@ if not batch_mode:
                             st.info(f"Grad-CAM image not found at: {full_path}")
                 else:
                     st.info("Grad-CAM URL format not recognized")
+                
+                # Grad-CAM Interpretation Guide
+                gradcam_guide = get_gradcam_interpretation()
+                with st.expander("Grad-CAM Interpretation Guide"):
+                    st.markdown(f"**{gradcam_guide['title']}**")
+                    st.markdown(gradcam_guide['description'])
+                    st.markdown("**Color Legend:**")
+                    for color, meaning in gradcam_guide['colors'].items():
+                        st.markdown(f"- **{color}:** {meaning}")
+                    st.markdown(f"**Clinical Note:** {gradcam_guide['clinical_note']}")
+                    st.caption(gradcam_guide['disclaimer'])
+                    
             elif generate_gradcam:
                 st.info("Grad-CAM not generated. Check API response.")
         else:

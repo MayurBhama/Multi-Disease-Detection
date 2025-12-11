@@ -223,25 +223,112 @@ def validate_image(file) -> Tuple[bool, str]:
 
 
 def get_disease_info(disease_type: str) -> Dict[str, Any]:
-    """Get information about disease type."""
+    """Get comprehensive medical information about disease type."""
     info = {
         "brain_mri": {
             "name": "Brain MRI Tumor Classification",
-            "description": "Classifies brain MRI scans into tumor types",
+            "description": "Classifies brain MRI scans into tumor types using deep learning",
             "classes": ["Glioma", "Meningioma", "No Tumor", "Pituitary"],
-            "color": "#6366f1"
+            "color": "#6366f1",
+            "medical_details": {
+                "glioma": {
+                    "description": "Gliomas are tumors that originate from glial cells in the brain or spine. They are the most common type of primary brain tumor.",
+                    "severity": "High",
+                    "recommendation": "Immediate consultation with a neuro-oncologist is recommended. Treatment may include surgery, radiation therapy, and/or chemotherapy.",
+                    "prevalence": "Represents about 30% of all brain tumors"
+                },
+                "meningioma": {
+                    "description": "Meningiomas arise from the meninges, the membranes surrounding the brain and spinal cord. Most are benign (non-cancerous).",
+                    "severity": "Low to Moderate",
+                    "recommendation": "Many meningiomas are slow-growing and may only require monitoring. Symptomatic cases may need surgical intervention.",
+                    "prevalence": "Most common primary brain tumor, about 36% of all brain tumors"
+                },
+                "notumor": {
+                    "description": "No tumor detected in the brain MRI scan. The brain tissue appears normal.",
+                    "severity": "None",
+                    "recommendation": "Continue routine health monitoring. If symptoms persist, consult a neurologist for further evaluation.",
+                    "prevalence": "N/A"
+                },
+                "pituitary": {
+                    "description": "Pituitary tumors (adenomas) develop in the pituitary gland. Most are benign and can affect hormone production.",
+                    "severity": "Low to Moderate",
+                    "recommendation": "Endocrinological evaluation recommended. Treatment depends on tumor size and hormone activity.",
+                    "prevalence": "About 10-15% of all intracranial tumors"
+                }
+            }
         },
         "pneumonia": {
             "name": "Chest X-Ray Pneumonia Detection",
-            "description": "Detects pneumonia from chest X-ray images",
+            "description": "Detects pneumonia from chest X-ray images using AI analysis",
             "classes": ["Normal", "Pneumonia"],
-            "color": "#06b6d4"
+            "color": "#06b6d4",
+            "medical_details": {
+                "NORMAL": {
+                    "description": "Chest X-ray shows clear lung fields with no signs of infection or consolidation.",
+                    "severity": "None",
+                    "recommendation": "No immediate intervention required. Continue standard care if symptomatic.",
+                    "prevalence": "N/A"
+                },
+                "PNEUMONIA": {
+                    "description": "Pneumonia is a lung infection causing inflammation of the air sacs. X-ray shows opacities or consolidation patterns.",
+                    "severity": "Moderate to High",
+                    "recommendation": "Medical evaluation required. Treatment typically includes antibiotics for bacterial pneumonia. Hospitalization may be needed for severe cases.",
+                    "prevalence": "Affects millions globally each year"
+                }
+            }
         },
         "retina": {
             "name": "Diabetic Retinopathy Screening",
             "description": "Grades diabetic retinopathy severity from fundus images",
             "classes": ["No DR", "Mild", "Moderate", "Severe", "Proliferative"],
-            "color": "#10b981"
+            "color": "#10b981",
+            "medical_details": {
+                "No_DR": {
+                    "description": "No signs of diabetic retinopathy detected. Retina appears healthy.",
+                    "severity": "None",
+                    "recommendation": "Continue annual diabetic eye exams. Maintain good blood sugar control.",
+                    "prevalence": "N/A"
+                },
+                "Mild": {
+                    "description": "Mild non-proliferative DR with microaneurysms (small areas of balloon-like swelling in the retina's blood vessels).",
+                    "severity": "Low",
+                    "recommendation": "Schedule follow-up in 6-12 months. Focus on glucose and blood pressure control.",
+                    "prevalence": "Early stage affecting many diabetic patients"
+                },
+                "Moderate": {
+                    "description": "Moderate non-proliferative DR with blocked blood vessels that nourish the retina.",
+                    "severity": "Moderate",
+                    "recommendation": "Ophthalmologist consultation within 3-6 months. Consider more aggressive diabetes management.",
+                    "prevalence": "Progression indicator requiring attention"
+                },
+                "Severe": {
+                    "description": "Severe non-proliferative DR with many blocked blood vessels, depriving areas of the retina of blood supply.",
+                    "severity": "High",
+                    "recommendation": "Urgent ophthalmologist referral. High risk of progressing to proliferative DR. May require laser treatment.",
+                    "prevalence": "Significant vision loss risk"
+                },
+                "Proliferative_DR": {
+                    "description": "Proliferative DR with new, abnormal blood vessel growth (neovascularization) that can bleed and cause vision loss.",
+                    "severity": "Critical",
+                    "recommendation": "Immediate ophthalmologist consultation. Treatment options include laser surgery, vitrectomy, or anti-VEGF injections.",
+                    "prevalence": "Advanced stage with high risk of blindness"
+                }
+            }
         }
     }
     return info.get(disease_type, {})
+
+
+def get_gradcam_interpretation() -> Dict[str, str]:
+    """Get Grad-CAM color interpretation guide."""
+    return {
+        "title": "Grad-CAM Interpretation Guide",
+        "description": "Grad-CAM (Gradient-weighted Class Activation Mapping) visualizes which regions of the image most influenced the AI's decision.",
+        "colors": {
+            "Red/Yellow (Hot)": "High activation - Areas the model focused on most strongly for its prediction",
+            "Green": "Moderate activation - Regions with some influence on the decision",
+            "Blue/Purple (Cool)": "Low activation - Areas with minimal contribution to the prediction"
+        },
+        "clinical_note": "Hot regions typically indicate pathological features like lesions, opacities, or abnormal structures that the model identified as diagnostically significant.",
+        "disclaimer": "Grad-CAM is an explainability tool and should be interpreted alongside clinical findings, not as a standalone diagnostic."
+    }
