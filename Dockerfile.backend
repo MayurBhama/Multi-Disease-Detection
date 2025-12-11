@@ -1,0 +1,35 @@
+# Dockerfile for FastAPI Backend
+FROM python:3.10-slim-bookworm
+
+WORKDIR /app
+
+# Install system dependencies for OpenCV
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for caching
+COPY requirements-api.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements-api.txt
+
+# Copy application code
+COPY src/ ./src/
+COPY configs/ ./configs/
+COPY models/ ./models/
+
+# Create outputs directory
+RUN mkdir -p outputs/gradcam
+
+# Expose port
+EXPOSE 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+# Run FastAPI
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8001"]

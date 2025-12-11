@@ -1,0 +1,50 @@
+# Git/Build artifacts
+.git
+.gitignore
+.dvc
+.dvcignore
+*.pyc
+__pycache__
+*.pyo
+*.pyd
+.Python
+*.egg-info
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+tf_gpu/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data (too large for Docker)
+data/
+*.dvc
+
+# Logs and outputs
+logs/
+mlruns/
+
+# Test files
+tests/
+test_*.py
+quick_test.py
+
+# Documentation
+*.md
+!README.md
+!DOCKER.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/

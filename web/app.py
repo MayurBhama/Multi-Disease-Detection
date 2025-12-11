@@ -80,8 +80,15 @@ st.markdown("""
 # =====================================================
 # INITIALIZE STATE
 # =====================================================
+# Get API URL from environment (for Docker/Render) or use default
+import os as _os
+API_URL = _os.environ.get("API_URL", "http://127.0.0.1:8001")
+# Render returns just the hostname, need to add https://
+if API_URL and not API_URL.startswith("http"):
+    API_URL = f"https://{API_URL}"
+
 if "api_client" not in st.session_state:
-    st.session_state.api_client = APIClient(base_url="http://127.0.0.1:8001")
+    st.session_state.api_client = APIClient(base_url=API_URL)
 
 if "prediction_result" not in st.session_state:
     st.session_state.prediction_result = None
@@ -489,9 +496,11 @@ else:
             
             def update(c, t):
                 progress.progress(c / t)
-                status.text(f"Processing {c}/{t}...")
+                status.text(f"Processing {c}/{t}{'  (with Grad-CAM)' if generate_gradcam else ''}...")
             
-            results = st.session_state.api_client.predict_batch(images, disease_type, update)
+            results = st.session_state.api_client.predict_batch(
+                images, disease_type, update, generate_gradcam=generate_gradcam
+            )
             st.session_state.batch_results = results
             status.text("Complete!")
     
@@ -504,25 +513,166 @@ else:
         c2.metric("Successful", successful)
         c3.metric("Failed", len(results) - successful)
         
+        st.divider()
+        
+        # Summary table
         table_data = []
-        for r in results:
+        for i, r in enumerate(results):
             if r.get("success"):
+                disease_info = get_disease_info(disease_type)
+                pred_key = r.get("predicted_class", "").lower().replace(" ", "_")
+                medical_details = disease_info.get("medical_details", {})
+                severity = "Unknown"
+                for key, value in medical_details.items():
+                    if key.lower().replace("_", "") == pred_key.replace("_", ""):
+                        severity = value.get("severity", "Unknown")
+                        break
+                
                 table_data.append({
                     "Filename": r.get("filename"),
                     "Prediction": r.get("predicted_class"),
-                    "Confidence": format_confidence(r.get("confidence", 0))
+                    "Confidence": format_confidence(r.get("confidence", 0)),
+                    "Severity": severity
                 })
             else:
                 table_data.append({
                     "Filename": r.get("filename"),
                     "Prediction": "-",
-                    "Confidence": "-"
+                    "Confidence": "-",
+                    "Severity": "-"
                 })
         
         st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
         
+        # Detailed expandable view for each result
+        st.markdown("### Detailed Results")
+        
+        for i, r in enumerate(results):
+            if r.get("success"):
+                with st.expander(f"{r.get('filename')} - {r.get('predicted_class')} ({format_confidence(r.get('confidence', 0))})"):
+                    # Metrics
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("Prediction", r.get("predicted_class"))
+                    m2.metric("Confidence", format_confidence(r.get("confidence", 0)))
+                    
+                    # Severity
+                    disease_info = get_disease_info(disease_type)
+                    pred_key = r.get("predicted_class", "").lower().replace(" ", "_")
+                    medical_details = disease_info.get("medical_details", {})
+                    class_info = None
+                    for key, value in medical_details.items():
+                        if key.lower().replace("_", "") == pred_key.replace("_", ""):
+                            class_info = value
+                            break
+                    
+                    if class_info:
+                        severity = class_info.get("severity", "Unknown")
+                        severity_score = get_severity_score(severity)
+                        m3.metric("Severity", severity)
+                    
+                    # Image comparison (Original + Grad-CAM)
+                    img_col1, img_col2 = st.columns(2)
+                    
+                    with img_col1:
+                        st.markdown("**Original**")
+                        if r.get("image_bytes"):
+                            st.image(r["image_bytes"], width=250)
+                    
+                    with img_col2:
+                        gradcam_url = r.get("gradcam_url")
+                        if gradcam_url:
+                            st.markdown("**Grad-CAM Overlay**")
+                            if gradcam_url.startswith("/static/"):
+                                local_path = gradcam_url.replace("/static/", "outputs/")
+                                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                                full_path = os.path.join(project_root, local_path.replace("/", os.sep))
+                                
+                                if os.path.exists(full_path):
+                                    st.image(full_path, width=250)
+                                else:
+                                    gradcam_bytes = st.session_state.api_client.get_gradcam_image(gradcam_url)
+                                    if gradcam_bytes:
+                                        st.image(gradcam_bytes, width=250)
+                                    else:
+                                        st.info("Grad-CAM not available")
+                        else:
+                            st.markdown("**Grad-CAM**")
+                            st.info("Enable Grad-CAM in sidebar")
+                    
+                    # Probabilities
+                    probs = r.get("probabilities", {})
+                    if probs:
+                        st.markdown("**Probability Distribution:**")
+                        prob_df = pd.DataFrame([
+                            {"Class": k, "Probability": f"{v*100:.1f}%"} 
+                            for k, v in sorted(probs.items(), key=lambda x: -x[1])
+                        ])
+                        st.dataframe(prob_df, use_container_width=True, hide_index=True)
+                    
+                    # Medical info
+                    if class_info:
+                        st.markdown("**Medical Interpretation:**")
+                        st.markdown(f"- **Description:** {class_info.get('description', 'N/A')}")
+                        st.markdown(f"- **Recommendation:** {class_info.get('recommendation', 'Consult a healthcare professional.')}")
+        
+        st.divider()
+        
+        # CSV Download
         csv = pd.DataFrame(table_data).to_csv(index=False)
-        st.download_button("Download CSV", csv, "predictions.csv", "text/csv")
+        st.download_button("Download CSV", csv, "batch_predictions.csv", "text/csv")
+        
+        # Batch PDF Report
+        if st.button("Generate Batch PDF Report", type="secondary"):
+            with st.spinner("Generating batch PDF..."):
+                try:
+                    from fpdf import FPDF
+                    from datetime import datetime
+                    
+                    class BatchPDF(FPDF):
+                        def header(self):
+                            self.set_font('Helvetica', 'B', 16)
+                            self.cell(0, 10, 'Batch Analysis Report', 0, 1, 'C')
+                            self.set_font('Helvetica', '', 10)
+                            self.cell(0, 5, f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}', 0, 1, 'C')
+                            self.ln(5)
+                        
+                        def footer(self):
+                            self.set_y(-15)
+                            self.set_font('Helvetica', 'I', 8)
+                            self.cell(0, 10, 'DISCLAIMER: For research purposes only.', 0, 0, 'C')
+                    
+                    pdf = BatchPDF()
+                    pdf.add_page()
+                    
+                    # Summary
+                    pdf.set_font('Helvetica', 'B', 14)
+                    pdf.cell(0, 10, 'Summary', 0, 1)
+                    pdf.set_font('Helvetica', '', 11)
+                    pdf.cell(60, 8, f'Total Images: {len(results)}', 0, 1)
+                    pdf.cell(60, 8, f'Successful: {successful}', 0, 1)
+                    pdf.cell(60, 8, f'Failed: {len(results) - successful}', 0, 1)
+                    pdf.ln(5)
+                    
+                    # Results table
+                    pdf.set_font('Helvetica', 'B', 12)
+                    pdf.cell(0, 10, 'Results', 0, 1)
+                    pdf.set_font('Helvetica', '', 9)
+                    
+                    for row in table_data:
+                        pdf.cell(70, 7, row["Filename"][:30], 0, 0)
+                        pdf.cell(40, 7, row["Prediction"], 0, 0)
+                        pdf.cell(30, 7, row["Confidence"], 0, 0)
+                        pdf.cell(30, 7, row["Severity"], 0, 1)
+                    
+                    st.download_button(
+                        "Download Batch PDF",
+                        data=bytes(pdf.output()),
+                        file_name="batch_analysis_report.pdf",
+                        mime="application/pdf"
+                    )
+                except Exception as e:
+                    st.error(f"PDF generation failed: {e}")
+
 
 
 # =====================================================

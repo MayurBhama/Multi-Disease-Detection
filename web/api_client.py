@@ -151,7 +151,8 @@ class APIClient:
         self,
         images: List[Tuple[bytes, str]],
         disease_type: str,
-        progress_callback=None
+        progress_callback=None,
+        generate_gradcam: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Predict multiple images.
@@ -160,6 +161,7 @@ class APIClient:
             images: List of (image_bytes, filename) tuples
             disease_type: Disease type for all images
             progress_callback: Optional callback(current, total)
+            generate_gradcam: Whether to generate Grad-CAM for each image
             
         Returns:
             List of prediction results
@@ -172,17 +174,19 @@ class APIClient:
                 progress_callback(i + 1, total)
             
             success, result = self.predict(
-                img_bytes, filename, disease_type, generate_gradcam=False
+                img_bytes, filename, disease_type, generate_gradcam=generate_gradcam
             )
             
             result["filename"] = filename
             result["success"] = success
+            result["image_bytes"] = img_bytes  # Store for display
             results.append(result)
             
             # Small delay to avoid overwhelming the server
-            time.sleep(0.1)
+            time.sleep(0.2 if generate_gradcam else 0.1)
         
         return results
+
 
 
 # Utility functions
@@ -338,13 +342,10 @@ def detect_image_type(image_bytes: bytes) -> Dict[str, Any]:
     """
     Auto-detect image type (Brain MRI, Chest X-ray, or Retina).
     
-    Uses heuristic analysis of image characteristics:
-    - Color distribution
-    - Shape/aspect ratio
-    - Histogram features
-    
-    Returns:
-        dict with detected_type, confidence, and analysis details
+    Improved heuristics:
+    - Color analysis for retina (warm colors, orange/red tones)
+    - Edge density for MRI (brain structures have more edges)
+    - Brightness distribution for X-ray (bimodal: dark lungs, bright ribs)
     """
     try:
         from PIL import Image
@@ -357,82 +358,133 @@ def detect_image_type(image_bytes: bytes) -> Dict[str, Any]:
         width, height = img.size
         aspect_ratio = width / height
         
-        # Convert to RGB if needed
+        # Grayscale check
         if len(img_array.shape) == 2:
             is_grayscale = True
-            gray_array = img_array
+            gray_array = img_array.astype(float)
+        elif img_array.shape[2] == 1:
+            is_grayscale = True
+            gray_array = img_array[:,:,0].astype(float)
         else:
-            is_grayscale = img_array.shape[2] == 1 or np.allclose(img_array[:,:,0], img_array[:,:,1], atol=10)
-            gray_array = np.mean(img_array[:,:,:3], axis=2) if len(img_array.shape) == 3 else img_array
+            # Check if RGB channels are similar
+            r, g, b = img_array[:,:,0], img_array[:,:,1], img_array[:,:,2]
+            is_grayscale = np.mean(np.abs(r.astype(float) - g.astype(float))) < 15 and \
+                          np.mean(np.abs(g.astype(float) - b.astype(float))) < 15
+            gray_array = np.mean(img_array[:,:,:3], axis=2).astype(float)
         
-        # Color analysis (for retina detection)
+        h, w = gray_array.shape
+        
+        # =============================================
+        # RETINA DETECTION (warm colors + dark borders)
+        # =============================================
         has_warm_colors = False
         red_dominance = 0
+        orange_score = 0
+        
         if not is_grayscale and len(img_array.shape) == 3 and img_array.shape[2] >= 3:
-            r, g, b = img_array[:,:,0], img_array[:,:,1], img_array[:,:,2]
+            r, g, b = img_array[:,:,0].astype(float), img_array[:,:,1].astype(float), img_array[:,:,2].astype(float)
+            
+            # Red/orange dominance (characteristic of retina)
             red_dominance = np.mean(r) - np.mean(b)
-            has_warm_colors = red_dominance > 20 and np.mean(r) > 80
+            orange_region = (r > 100) & (g > 50) & (b < 100)
+            orange_score = np.sum(orange_region) / (h * w) * 100
+            has_warm_colors = (red_dominance > 15 and np.mean(r) > 80) or orange_score > 20
         
-        # Circular mask detection (for retina)
-        h, w = gray_array.shape
-        center = (w // 2, h // 2)
-        radius = min(w, h) // 2
-        y, x = np.ogrid[:h, :w]
-        mask = (x - center[0])**2 + (y - center[1])**2 <= radius**2
+        # Dark border detection (fundus images have black circular borders)
+        border_size = min(h, w) // 8
+        top_border = np.mean(gray_array[:border_size, :])
+        bottom_border = np.mean(gray_array[-border_size:, :])
+        left_border = np.mean(gray_array[:, :border_size])
+        right_border = np.mean(gray_array[:, -border_size:])
+        corner_brightness = (top_border + bottom_border + left_border + right_border) / 4
         
-        # Check for dark borders (characteristic of fundus images)
-        border_region = ~mask
-        border_darkness = np.mean(gray_array[border_region]) if np.any(border_region) else 128
-        center_brightness = np.mean(gray_array[mask]) if np.any(mask) else 128
-        has_dark_borders = border_darkness < 50 and center_brightness > 80
+        center_region = gray_array[h//4:3*h//4, w//4:3*w//4]
+        center_brightness = np.mean(center_region)
+        
+        has_dark_borders = corner_brightness < 30 and center_brightness > 60
+        
+        # =============================================
+        # MRI vs X-RAY DIFFERENTIATION
+        # =============================================
+        
+        # Edge density (MRI has more internal structure/edges)
+        # Simple Sobel-like edge detection
+        gx = np.abs(gray_array[:, 1:] - gray_array[:, :-1])
+        gy = np.abs(gray_array[1:, :] - gray_array[:-1, :])
+        edge_density = (np.mean(gx) + np.mean(gy)) / 2
         
         # Histogram analysis
-        hist, _ = np.histogram(gray_array.flatten(), bins=256, range=(0, 256))
-        hist_normalized = hist / hist.sum()
+        hist, bins = np.histogram(gray_array.flatten(), bins=50, range=(0, 255))
+        hist_norm = hist / hist.sum()
         
-        # High contrast check (X-ray characteristic)
-        low_intensity = np.sum(hist_normalized[:50])
-        high_intensity = np.sum(hist_normalized[200:])
-        has_high_contrast = low_intensity > 0.1 and high_intensity > 0.05
+        # X-ray has bimodal distribution (dark lungs + bright bones)
+        low_peak = np.sum(hist_norm[:15])   # Dark regions
+        mid_region = np.sum(hist_norm[15:35])  # Mid-tones
+        high_peak = np.sum(hist_norm[35:])  # Bright regions
         
-        # Score calculation
-        scores = {
-            "retina": 0,
-            "pneumonia": 0,  # Chest X-ray
-            "brain_mri": 0
-        }
+        is_bimodal = low_peak > 0.15 and high_peak > 0.1 and mid_region < 0.5
         
-        # Retina scoring
+        # MRI typically has smoother histogram, more mid-tones
+        has_mid_tones = mid_region > 0.3
+        
+        # X-ray background is typically uniform dark or light
+        # MRI often has text/annotations or variable background
+        
+        # Check for rectangular shape (X-rays are often portrait/landscape)
+        is_portrait = aspect_ratio < 0.9  # Taller than wide
+        is_square = 0.9 <= aspect_ratio <= 1.1
+        
+        # =============================================
+        # SCORING
+        # =============================================
+        scores = {"retina": 0, "pneumonia": 0, "brain_mri": 0}
+        
+        # RETINA scoring
         if has_warm_colors:
-            scores["retina"] += 40
+            scores["retina"] += 50
         if has_dark_borders:
-            scores["retina"] += 35
-        if 0.8 <= aspect_ratio <= 1.2:  # Square-ish aspect ratio
+            scores["retina"] += 40
+        if orange_score > 30:
+            scores["retina"] += 20
+        if red_dominance > 25:
             scores["retina"] += 15
-        if red_dominance > 30:
-            scores["retina"] += 10
         
-        # Chest X-ray scoring
-        if is_grayscale or (not has_warm_colors):
-            scores["pneumonia"] += 20
-        if has_high_contrast:
-            scores["pneumonia"] += 30
-        if 0.7 <= aspect_ratio <= 1.3:
-            scores["pneumonia"] += 15
-        if center_brightness > 100:  # Chest center usually bright
-            scores["pneumonia"] += 15
-        if not has_dark_borders:
-            scores["pneumonia"] += 10
-        
-        # Brain MRI scoring
-        if is_grayscale or (not has_warm_colors):
-            scores["brain_mri"] += 20
-        if 0.9 <= aspect_ratio <= 1.1:  # Very square
-            scores["brain_mri"] += 20
-        if not has_high_contrast:  # MRI has more uniform distribution
-            scores["brain_mri"] += 15
-        if border_darkness > 30:  # MRI often has less dark borders
-            scores["brain_mri"] += 15
+        # If clearly retina (warm colors + dark borders), don't consider others much
+        if scores["retina"] >= 70:
+            scores["pneumonia"] = 0
+            scores["brain_mri"] = 0
+        else:
+            # CHEST X-RAY scoring (only for grayscale images)
+            if is_grayscale:
+                scores["pneumonia"] += 15
+                
+                if is_bimodal:
+                    scores["pneumonia"] += 30  # Bimodal = lungs + ribs
+                
+                if is_portrait or aspect_ratio > 1.1:  # X-rays often portrait or wide
+                    scores["pneumonia"] += 15
+                
+                if edge_density < 15:  # X-rays have fewer internal edges
+                    scores["pneumonia"] += 20
+                
+                if center_brightness > 100:  # Chest center often brighter
+                    scores["pneumonia"] += 10
+            
+            # BRAIN MRI scoring (only for grayscale images)
+            if is_grayscale:
+                scores["brain_mri"] += 15
+                
+                if is_square:  # MRI slices are typically square
+                    scores["brain_mri"] += 25
+                
+                if edge_density > 12:  # Brain has more internal structure
+                    scores["brain_mri"] += 25
+                
+                if has_mid_tones:  # MRI has more gradual intensity
+                    scores["brain_mri"] += 15
+                
+                if not is_bimodal:  # MRI is not typically bimodal
+                    scores["brain_mri"] += 10
         
         # Normalize scores
         total = sum(scores.values()) or 1
@@ -450,7 +502,8 @@ def detect_image_type(image_bytes: bytes) -> Dict[str, Any]:
                 "aspect_ratio": round(aspect_ratio, 2),
                 "has_warm_colors": has_warm_colors,
                 "has_dark_borders": has_dark_borders,
-                "has_high_contrast": has_high_contrast
+                "edge_density": round(edge_density, 1),
+                "is_bimodal": is_bimodal
             }
         }
     except Exception as e:
@@ -460,6 +513,9 @@ def detect_image_type(image_bytes: bytes) -> Dict[str, Any]:
             "all_scores": {"brain_mri": 0.33, "pneumonia": 0.33, "retina": 0.33},
             "error": str(e)
         }
+
+
+
 
 
 def get_preprocessed_preview(image_bytes: bytes, disease_type: str = "brain_mri") -> bytes:
