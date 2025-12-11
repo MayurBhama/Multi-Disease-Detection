@@ -20,7 +20,10 @@ from api_client import (
     get_gradcam_interpretation,
     check_image_quality,
     get_severity_score,
-    generate_pdf_report
+    generate_pdf_report,
+    detect_image_type,
+    get_preprocessed_preview,
+    check_retina_quality
 )
 from styles import (
     get_custom_css, 
@@ -41,7 +44,7 @@ st.set_page_config(
 
 st.markdown(get_custom_css(), unsafe_allow_html=True)
 
-# Custom CSS for larger fonts
+# Custom CSS
 st.markdown("""
 <style>
     .section-header {
@@ -57,16 +60,19 @@ st.markdown("""
         background: rgba(8, 145, 178, 0.05) !important;
         border-radius: 8px !important;
     }
-    .quality-badge {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.85rem;
-        font-weight: 500;
+    .auto-detect-box {
+        padding: 0.8rem;
+        border-radius: 8px;
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        margin-bottom: 1rem;
     }
-    .quality-good { background: #10b981; color: white; }
-    .quality-warn { background: #f59e0b; color: white; }
-    .quality-bad { background: #ef4444; color: white; }
+    .quality-metric {
+        padding: 0.5rem;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.05);
+        margin: 0.25rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -86,6 +92,9 @@ if "uploaded_image_bytes" not in st.session_state:
 if "batch_results" not in st.session_state:
     st.session_state.batch_results = None
 
+if "detected_type" not in st.session_state:
+    st.session_state.detected_type = None
+
 
 # =====================================================
 # SIDEBAR
@@ -101,13 +110,21 @@ with st.sidebar:
     
     st.divider()
     
+    # Auto-detect toggle
     st.markdown("### Analysis Type")
-    disease_type = st.radio(
-        "Select:",
-        options=["brain_mri", "pneumonia", "retina"],
-        format_func=lambda x: {"brain_mri": "Brain MRI", "pneumonia": "Chest X-Ray", "retina": "Retinal Scan"}[x],
-        label_visibility="collapsed"
-    )
+    auto_detect = st.toggle("Auto-Detect Image Type", value=True, help="Automatically detect if image is Brain MRI, Chest X-ray, or Retina")
+    
+    if not auto_detect:
+        disease_type = st.radio(
+            "Select manually:",
+            options=["brain_mri", "pneumonia", "retina"],
+            format_func=lambda x: {"brain_mri": "Brain MRI", "pneumonia": "Chest X-Ray", "retina": "Retinal Scan"}[x],
+            label_visibility="collapsed"
+        )
+    else:
+        disease_type = None  # Will be set by auto-detection
+        if st.session_state.detected_type:
+            st.info(f"Detected: {st.session_state.detected_type.replace('_', ' ').title()}")
     
     st.divider()
     
@@ -160,30 +177,98 @@ if not batch_mode:
             image_bytes = uploaded_file.read()
             st.session_state.uploaded_image_bytes = image_bytes
             
+            # =============================================
+            # AUTO-DETECT IMAGE TYPE
+            # =============================================
+            if auto_detect:
+                detection = detect_image_type(image_bytes)
+                detected_type = detection["detected_type"]
+                st.session_state.detected_type = detected_type
+                disease_type = detected_type
+                
+                st.markdown(f"""
+<div class="auto-detect-box">
+<strong>Auto-Detection Result:</strong> {detected_type.replace('_', ' ').title()} 
+<span style="color: #10b981;">({detection['confidence']*100:.0f}% confidence)</span>
+<br><small>Brain MRI: {detection['all_scores'].get('brain_mri', 0)*100:.0f}% | 
+Chest X-Ray: {detection['all_scores'].get('pneumonia', 0)*100:.0f}% | 
+Retina: {detection['all_scores'].get('retina', 0)*100:.0f}%</small>
+</div>
+""", unsafe_allow_html=True)
+            
+            # =============================================
+            # IMAGE PREPROCESSING PREVIEW
+            # =============================================
+            with st.expander("Image Preprocessing Preview"):
+                prev_col1, prev_col2 = st.columns(2)
+                
+                with prev_col1:
+                    st.markdown("**Original**")
+                    st.image(image_bytes, width=200)
+                
+                with prev_col2:
+                    st.markdown("**Preprocessed (224x224)**")
+                    preprocessed = get_preprocessed_preview(image_bytes, disease_type or "brain_mri")
+                    st.image(preprocessed, width=200)
+                
+                st.caption("The model sees the preprocessed version (center-cropped and resized)")
+            
+            # =============================================
             # IMAGE QUALITY CHECK
+            # =============================================
             quality = check_image_quality(image_bytes)
             
-            with st.expander("Image Quality Check", expanded=len(quality.get("issues", [])) > 0):
-                q_col1, q_col2, q_col3 = st.columns(3)
-                with q_col1:
-                    st.metric("Resolution", f"{quality['resolution'][0]}x{quality['resolution'][1]}")
-                with q_col2:
-                    st.metric("File Size", f"{quality['file_size_mb']} MB")
-                with q_col3:
-                    if quality['blur_score'] is not None:
-                        st.metric("Sharpness", f"{quality['blur_score']:.0f}")
-                    else:
-                        st.metric("Sharpness", "N/A")
+            # Enhanced retina quality check
+            if disease_type == "retina":
+                retina_quality = check_retina_quality(image_bytes)
                 
-                if quality["issues"]:
-                    for issue in quality["issues"]:
-                        if "too low" in issue or "exceeds" in issue or "blurry" in issue.lower():
-                            st.warning(issue)
+                with st.expander("Retina Image Quality Analysis", expanded=True):
+                    # Quality score gauge
+                    q_score = retina_quality.get("quality_score", 0)
+                    q_status = retina_quality.get("overall_status", "Unknown")
+                    
+                    st.markdown(f"**Overall Quality: {q_status}** ({q_score}/100)")
+                    st.progress(q_score / 100)
+                    
+                    # Individual metrics
+                    q1, q2 = st.columns(2)
+                    with q1:
+                        b = retina_quality.get("brightness", {})
+                        st.markdown(f"**Brightness:** {b.get('status', 'N/A')} ({b.get('value', 0)})")
+                        
+                        c = retina_quality.get("contrast", {})
+                        st.markdown(f"**Contrast:** {c.get('status', 'N/A')} ({c.get('value', 0)})")
+                    
+                    with q2:
+                        g = retina_quality.get("glare", {})
+                        st.markdown(f"**Glare:** {g.get('status', 'N/A')} ({g.get('value', 0)}%)")
+                        
+                        f = retina_quality.get("field_of_view", {})
+                        st.markdown(f"**Field of View:** {f.get('status', 'N/A')} ({f.get('value', 0)}%)")
+                    
+                    if q_score < 50:
+                        st.warning("Low quality image may affect prediction accuracy")
+            else:
+                # Standard quality check for other types
+                with st.expander("Image Quality Check", expanded=len(quality.get("issues", [])) > 0):
+                    q_col1, q_col2, q_col3 = st.columns(3)
+                    with q_col1:
+                        st.metric("Resolution", f"{quality['resolution'][0]}x{quality['resolution'][1]}")
+                    with q_col2:
+                        st.metric("File Size", f"{quality['file_size_mb']} MB")
+                    with q_col3:
+                        if quality.get('blur_score') is not None:
+                            st.metric("Sharpness", f"{quality['blur_score']:.0f}")
                         else:
-                            st.info(issue)
-                else:
-                    st.success("Image quality looks good!")
+                            st.metric("Sharpness", "N/A")
+                    
+                    if quality["issues"]:
+                        for issue in quality["issues"]:
+                            st.warning(issue)
+                    else:
+                        st.success("Image quality looks good!")
             
+            # Analyze button
             if st.button("Analyze Image", type="primary"):
                 with st.spinner("Analyzing..."):
                     success, result = st.session_state.api_client.predict(
@@ -206,10 +291,11 @@ if not batch_mode:
     if result:
         confidence = result.get("confidence", 0)
         predicted_class = result.get("predicted_class", "N/A")
+        result_disease_type = result.get("disease_type", disease_type)
         disease_names = {"brain_mri": "Brain MRI", "pneumonia": "Chest X-Ray", "retina": "Retinal"}
         
         # Get severity info
-        disease_info = get_disease_info(disease_type)
+        disease_info = get_disease_info(result_disease_type)
         pred_key = predicted_class.lower().replace(" ", "_")
         medical_details = disease_info.get("medical_details", {})
         class_info = None
@@ -229,43 +315,31 @@ if not batch_mode:
         if confidence < 0.5:
             st.warning("Low Confidence - Manual review recommended")
         
-        # Metrics row
         m1, m2, m3 = st.columns(3)
         m1.metric("Predicted Condition", predicted_class)
         m2.metric("Confidence", format_confidence(confidence))
-        m3.metric("Analysis Type", disease_names.get(disease_type, disease_type))
+        m3.metric("Analysis Type", disease_names.get(result_disease_type, result_disease_type))
         
-        # Probability table
         probs = result.get("probabilities", {})
         if probs:
             prob_data = [{"Class": k, "Probability": f"{v*100:.1f}%"} for k, v in sorted(probs.items(), key=lambda x: -x[1])]
             st.dataframe(pd.DataFrame(prob_data), use_container_width=True, hide_index=True)
         
-        # -------------------------------------------------
-        # SEVERITY GAUGE
-        # -------------------------------------------------
+        # Severity Gauge
         st.markdown("**Severity Gauge**")
-        
-        gauge_colors = [(0, "#10b981"), (0.35, "#f59e0b"), (0.65, "#ef4444"), (1, "#dc2626")]
-        
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=severity_score,
             title={'text': f"Severity: {severity}"},
             gauge={
-                'axis': {'range': [0, 100], 'tickwidth': 1},
+                'axis': {'range': [0, 100]},
                 'bar': {'color': "#0891b2"},
                 'steps': [
                     {'range': [0, 25], 'color': "#d1fae5"},
                     {'range': [25, 50], 'color': "#fef3c7"},
                     {'range': [50, 75], 'color': "#fed7aa"},
                     {'range': [75, 100], 'color': "#fecaca"}
-                ],
-                'threshold': {
-                    'line': {'color': "black", 'width': 2},
-                    'thickness': 0.8,
-                    'value': severity_score
-                }
+                ]
             }
         ))
         fig.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
@@ -281,24 +355,19 @@ if not batch_mode:
             interpretation = f"""
 <div class="interpretation-text">
 <p><strong>Detection:</strong> The AI identified patterns consistent with <strong>{predicted_class}</strong> ({format_confidence(confidence)} confidence).</p>
-
 <p><strong>What is {predicted_class}?</strong><br>{class_info.get('description', 'N/A')}</p>
-
 <p><strong>Severity:</strong> <span style="color: {'#ef4444' if severity_score >= 65 else '#f59e0b' if severity_score >= 35 else '#10b981'}; font-weight: bold;">{severity}</span></p>
-
 <p><strong>Recommendation:</strong><br>{class_info.get('recommendation', 'Consult a healthcare professional.')}</p>
 </div>
 """
             st.markdown(interpretation, unsafe_allow_html=True)
         
         # -------------------------------------------------
-        # SECTION 3: ENSEMBLE MODEL COMPARISON (Retina only)
+        # SECTION 3: ENSEMBLE (Retina only)
         # -------------------------------------------------
-        if disease_type == "retina" and result.get("individual_predictions"):
+        if result_disease_type == "retina" and result.get("individual_predictions"):
             st.divider()
             st.markdown('<p class="section-header">3. Ensemble Model Comparison</p>', unsafe_allow_html=True)
-            
-            st.caption("The retina analysis uses an ensemble of 3 EfficientNet models")
             
             ind_preds = result["individual_predictions"]
             if ind_preds:
@@ -310,23 +379,18 @@ if not batch_mode:
                             "Prediction": pred_data.get("predicted_class", "N/A"),
                             "Confidence": f"{pred_data.get('confidence', 0)*100:.1f}%"
                         })
-                
                 if model_data:
                     st.dataframe(pd.DataFrame(model_data), use_container_width=True, hide_index=True)
-            else:
-                st.info("Individual model predictions not available")
         
         # -------------------------------------------------
-        # SECTION 4: GRAD-CAM VISUALIZATION (Comparison)
+        # SECTION 4: GRAD-CAM
         # -------------------------------------------------
         if generate_gradcam:
             st.divider()
-            section_num = "4" if disease_type == "retina" else "3"
+            section_num = "4" if result_disease_type == "retina" else "3"
             st.markdown(f'<p class="section-header">{section_num}. Grad-CAM Visualization</p>', unsafe_allow_html=True)
             
-            # Side-by-side comparison
             gradcam_url = result.get("gradcam_url")
-            comparison_url = result.get("gradcam_comparison_url")
             
             img_col1, img_col2 = st.columns(2)
             
@@ -353,11 +417,9 @@ if not batch_mode:
                 else:
                     st.info("Grad-CAM not generated")
             
-            # -------------------------------------------------
-            # SECTION 5: GRAD-CAM INTERPRETATION
-            # -------------------------------------------------
+            # Grad-CAM interpretation
             st.divider()
-            section_num = "5" if disease_type == "retina" else "4"
+            section_num = "5" if result_disease_type == "retina" else "4"
             st.markdown(f'<p class="section-header">{section_num}. How to Read Grad-CAM</p>', unsafe_allow_html=True)
             
             gradcam_guide = get_gradcam_interpretation()
@@ -372,21 +434,18 @@ if not batch_mode:
             guide_html += f"""
 </ul>
 <p><strong>Clinical Note:</strong> {gradcam_guide['clinical_note']}</p>
-<p style="color: #6b7280; font-style: italic;">{gradcam_guide['disclaimer']}</p>
 </div>
 """
             st.markdown(guide_html, unsafe_allow_html=True)
         
-        # -------------------------------------------------
-        # PDF EXPORT
-        # -------------------------------------------------
+        # PDF Export
         st.divider()
         st.markdown("### Export Report")
         
         if st.button("Generate PDF Report", type="secondary"):
             with st.spinner("Generating PDF..."):
                 try:
-                    pdf_bytes = generate_pdf_report(result, disease_type)
+                    pdf_bytes = generate_pdf_report(result, result_disease_type)
                     st.download_button(
                         "Download PDF",
                         data=pdf_bytes,
@@ -405,6 +464,10 @@ if not batch_mode:
 # =====================================================
 else:
     st.markdown("### Batch Prediction")
+    
+    if auto_detect:
+        st.warning("Auto-detect is disabled in batch mode. Please select analysis type manually in sidebar.")
+        disease_type = st.selectbox("Select type for batch:", ["brain_mri", "pneumonia", "retina"])
     
     uploaded_files = st.file_uploader(
         "Upload multiple images",

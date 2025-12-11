@@ -334,6 +334,331 @@ def get_gradcam_interpretation() -> Dict[str, str]:
     }
 
 
+def detect_image_type(image_bytes: bytes) -> Dict[str, Any]:
+    """
+    Auto-detect image type (Brain MRI, Chest X-ray, or Retina).
+    
+    Uses heuristic analysis of image characteristics:
+    - Color distribution
+    - Shape/aspect ratio
+    - Histogram features
+    
+    Returns:
+        dict with detected_type, confidence, and analysis details
+    """
+    try:
+        from PIL import Image
+        import numpy as np
+        from io import BytesIO
+        
+        img = Image.open(BytesIO(image_bytes))
+        img_array = np.array(img)
+        
+        width, height = img.size
+        aspect_ratio = width / height
+        
+        # Convert to RGB if needed
+        if len(img_array.shape) == 2:
+            is_grayscale = True
+            gray_array = img_array
+        else:
+            is_grayscale = img_array.shape[2] == 1 or np.allclose(img_array[:,:,0], img_array[:,:,1], atol=10)
+            gray_array = np.mean(img_array[:,:,:3], axis=2) if len(img_array.shape) == 3 else img_array
+        
+        # Color analysis (for retina detection)
+        has_warm_colors = False
+        red_dominance = 0
+        if not is_grayscale and len(img_array.shape) == 3 and img_array.shape[2] >= 3:
+            r, g, b = img_array[:,:,0], img_array[:,:,1], img_array[:,:,2]
+            red_dominance = np.mean(r) - np.mean(b)
+            has_warm_colors = red_dominance > 20 and np.mean(r) > 80
+        
+        # Circular mask detection (for retina)
+        h, w = gray_array.shape
+        center = (w // 2, h // 2)
+        radius = min(w, h) // 2
+        y, x = np.ogrid[:h, :w]
+        mask = (x - center[0])**2 + (y - center[1])**2 <= radius**2
+        
+        # Check for dark borders (characteristic of fundus images)
+        border_region = ~mask
+        border_darkness = np.mean(gray_array[border_region]) if np.any(border_region) else 128
+        center_brightness = np.mean(gray_array[mask]) if np.any(mask) else 128
+        has_dark_borders = border_darkness < 50 and center_brightness > 80
+        
+        # Histogram analysis
+        hist, _ = np.histogram(gray_array.flatten(), bins=256, range=(0, 256))
+        hist_normalized = hist / hist.sum()
+        
+        # High contrast check (X-ray characteristic)
+        low_intensity = np.sum(hist_normalized[:50])
+        high_intensity = np.sum(hist_normalized[200:])
+        has_high_contrast = low_intensity > 0.1 and high_intensity > 0.05
+        
+        # Score calculation
+        scores = {
+            "retina": 0,
+            "pneumonia": 0,  # Chest X-ray
+            "brain_mri": 0
+        }
+        
+        # Retina scoring
+        if has_warm_colors:
+            scores["retina"] += 40
+        if has_dark_borders:
+            scores["retina"] += 35
+        if 0.8 <= aspect_ratio <= 1.2:  # Square-ish aspect ratio
+            scores["retina"] += 15
+        if red_dominance > 30:
+            scores["retina"] += 10
+        
+        # Chest X-ray scoring
+        if is_grayscale or (not has_warm_colors):
+            scores["pneumonia"] += 20
+        if has_high_contrast:
+            scores["pneumonia"] += 30
+        if 0.7 <= aspect_ratio <= 1.3:
+            scores["pneumonia"] += 15
+        if center_brightness > 100:  # Chest center usually bright
+            scores["pneumonia"] += 15
+        if not has_dark_borders:
+            scores["pneumonia"] += 10
+        
+        # Brain MRI scoring
+        if is_grayscale or (not has_warm_colors):
+            scores["brain_mri"] += 20
+        if 0.9 <= aspect_ratio <= 1.1:  # Very square
+            scores["brain_mri"] += 20
+        if not has_high_contrast:  # MRI has more uniform distribution
+            scores["brain_mri"] += 15
+        if border_darkness > 30:  # MRI often has less dark borders
+            scores["brain_mri"] += 15
+        
+        # Normalize scores
+        total = sum(scores.values()) or 1
+        confidences = {k: round(v / total, 2) for k, v in scores.items()}
+        
+        detected_type = max(scores, key=scores.get)
+        confidence = confidences[detected_type]
+        
+        return {
+            "detected_type": detected_type,
+            "confidence": confidence,
+            "all_scores": confidences,
+            "analysis": {
+                "is_grayscale": is_grayscale,
+                "aspect_ratio": round(aspect_ratio, 2),
+                "has_warm_colors": has_warm_colors,
+                "has_dark_borders": has_dark_borders,
+                "has_high_contrast": has_high_contrast
+            }
+        }
+    except Exception as e:
+        return {
+            "detected_type": "brain_mri",
+            "confidence": 0.33,
+            "all_scores": {"brain_mri": 0.33, "pneumonia": 0.33, "retina": 0.33},
+            "error": str(e)
+        }
+
+
+def get_preprocessed_preview(image_bytes: bytes, disease_type: str = "brain_mri") -> bytes:
+    """
+    Generate 224x224 preprocessed preview of the image.
+    
+    Returns:
+        PNG bytes of preprocessed image
+    """
+    try:
+        from PIL import Image
+        import numpy as np
+        from io import BytesIO
+        
+        img = Image.open(BytesIO(image_bytes))
+        
+        # Convert to RGB
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        
+        # Resize to 224x224 (maintain aspect ratio with center crop)
+        target_size = 224
+        width, height = img.size
+        
+        # Calculate crop dimensions
+        if width > height:
+            new_height = target_size
+            new_width = int(width * (target_size / height))
+        else:
+            new_width = target_size
+            new_height = int(height * (target_size / width))
+        
+        img_resized = img.resize((new_width, new_height), Image.LANCZOS)
+        
+        # Center crop
+        left = (new_width - target_size) // 2
+        top = (new_height - target_size) // 2
+        img_cropped = img_resized.crop((left, top, left + target_size, top + target_size))
+        
+        # Convert to bytes
+        output = BytesIO()
+        img_cropped.save(output, format='PNG')
+        return output.getvalue()
+        
+    except Exception as e:
+        return image_bytes  # Return original on error
+
+
+def check_retina_quality(image_bytes: bytes) -> Dict[str, Any]:
+    """
+    Enhanced quality check specifically for retina fundus images.
+    
+    Checks:
+    - Brightness level
+    - Contrast level  
+    - Glare/saturation
+    - Field of view coverage
+    - Overall quality score
+    """
+    try:
+        from PIL import Image
+        import numpy as np
+        from io import BytesIO
+        
+        img = Image.open(BytesIO(image_bytes))
+        img_array = np.array(img)
+        
+        # Convert to grayscale for analysis
+        if len(img_array.shape) == 3:
+            gray = np.mean(img_array[:,:,:3], axis=2)
+            rgb = img_array[:,:,:3]
+        else:
+            gray = img_array
+            rgb = None
+        
+        h, w = gray.shape
+        
+        # 1. Brightness Analysis
+        mean_brightness = np.mean(gray)
+        brightness_status = "Good"
+        if mean_brightness < 40:
+            brightness_status = "Too Dark"
+        elif mean_brightness < 70:
+            brightness_status = "Dark"
+        elif mean_brightness > 200:
+            brightness_status = "Too Bright"
+        elif mean_brightness > 170:
+            brightness_status = "Bright"
+        
+        # 2. Contrast Analysis (standard deviation)
+        contrast = np.std(gray)
+        contrast_status = "Good"
+        if contrast < 30:
+            contrast_status = "Low Contrast"
+        elif contrast < 50:
+            contrast_status = "Fair"
+        elif contrast > 80:
+            contrast_status = "High Contrast"
+        
+        # 3. Glare Detection (saturated pixels)
+        saturated_pixels = np.sum(gray > 250) / gray.size * 100
+        glare_status = "None"
+        if saturated_pixels > 5:
+            glare_status = "Severe Glare"
+        elif saturated_pixels > 2:
+            glare_status = "Moderate Glare"
+        elif saturated_pixels > 0.5:
+            glare_status = "Mild Glare"
+        
+        # 4. Field of View (circular coverage detection)
+        # Create circular mask
+        center = (w // 2, h // 2)
+        radius = min(w, h) // 2
+        y, x = np.ogrid[:h, :w]
+        circular_mask = (x - center[0])**2 + (y - center[1])**2 <= radius**2
+        
+        # Check coverage (non-black pixels in circular region)
+        threshold = 20
+        valid_pixels = gray[circular_mask] > threshold
+        fov_coverage = np.sum(valid_pixels) / np.sum(circular_mask) * 100
+        
+        fov_status = "Good"
+        if fov_coverage < 60:
+            fov_status = "Poor FOV"
+        elif fov_coverage < 80:
+            fov_status = "Partial FOV"
+        elif fov_coverage > 95:
+            fov_status = "Excellent FOV"
+        
+        # 5. Overall Quality Score (0-100)
+        quality_score = 0
+        
+        # Brightness contribution (25 points)
+        if brightness_status == "Good":
+            quality_score += 25
+        elif brightness_status in ["Dark", "Bright"]:
+            quality_score += 15
+        else:
+            quality_score += 5
+        
+        # Contrast contribution (25 points)
+        if contrast_status == "Good":
+            quality_score += 25
+        elif contrast_status == "Fair":
+            quality_score += 15
+        elif contrast_status == "High Contrast":
+            quality_score += 20
+        else:
+            quality_score += 5
+        
+        # Glare contribution (25 points)
+        if glare_status == "None":
+            quality_score += 25
+        elif glare_status == "Mild Glare":
+            quality_score += 15
+        elif glare_status == "Moderate Glare":
+            quality_score += 8
+        else:
+            quality_score += 0
+        
+        # FOV contribution (25 points)
+        if fov_status in ["Good", "Excellent FOV"]:
+            quality_score += 25
+        elif fov_status == "Partial FOV":
+            quality_score += 15
+        else:
+            quality_score += 5
+        
+        overall_status = "Excellent" if quality_score >= 85 else "Good" if quality_score >= 70 else "Fair" if quality_score >= 50 else "Poor"
+        
+        return {
+            "quality_score": quality_score,
+            "overall_status": overall_status,
+            "brightness": {
+                "value": round(mean_brightness, 1),
+                "status": brightness_status
+            },
+            "contrast": {
+                "value": round(contrast, 1),
+                "status": contrast_status
+            },
+            "glare": {
+                "value": round(saturated_pixels, 2),
+                "status": glare_status
+            },
+            "field_of_view": {
+                "value": round(fov_coverage, 1),
+                "status": fov_status
+            }
+        }
+    except Exception as e:
+        return {
+            "quality_score": 0,
+            "overall_status": "Error",
+            "error": str(e)
+        }
+
+
+
 def check_image_quality(image_bytes: bytes) -> Dict[str, Any]:
     """
     Check image quality before analysis.
