@@ -531,5 +531,6 @@ def generate_pdf_report(
         pdf.set_font('Helvetica', '', 10)
         pdf.multi_cell(0, 6, class_info.get('recommendation', 'Consult a healthcare professional.'))
     
-    # Return PDF bytes
-    return pdf.output()
+    # Return PDF bytes (convert bytearray to bytes for Streamlit)
+    return bytes(pdf.output())
+
