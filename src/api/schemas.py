@@ -22,7 +22,10 @@ class PredictionResponse(BaseModel):
     class_id: int = Field(..., description="Predicted class index")
     confidence: float = Field(..., ge=0, le=1, description="Confidence score")
     probabilities: Dict[str, float] = Field(..., description="All class probabilities")
-    gradcam_url: Optional[str] = Field(None, description="Grad-CAM image URL")
+    gradcam_url: Optional[str] = Field(None, description="Grad-CAM overlay image URL")
+    gradcam_comparison_url: Optional[str] = Field(None, description="Original + Grad-CAM comparison URL")
+    original_image_url: Optional[str] = Field(None, description="Original image URL for comparison")
+    individual_predictions: Optional[Dict[str, Dict]] = Field(None, description="Individual model predictions (ensemble)")
     
     class Config:
         json_schema_extra = {
@@ -32,7 +35,8 @@ class PredictionResponse(BaseModel):
                 "class_id": 0,
                 "confidence": 0.95,
                 "probabilities": {"glioma": 0.95, "meningioma": 0.03},
-                "gradcam_url": "/static/gradcam/brain_mri/image_overlay.png"
+                "gradcam_url": "/static/gradcam/brain_mri/image_overlay.png",
+                "gradcam_comparison_url": "/static/gradcam/brain_mri/image_comparison.png"
             }
         }
 

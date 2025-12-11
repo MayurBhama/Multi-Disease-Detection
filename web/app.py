@@ -10,13 +10,17 @@ Run with: streamlit run web/app.py
 import streamlit as st
 import pandas as pd
 import os
+import plotly.graph_objects as go
 
 from api_client import (
     APIClient, 
     format_confidence, 
     validate_image, 
     get_disease_info,
-    get_gradcam_interpretation
+    get_gradcam_interpretation,
+    check_image_quality,
+    get_severity_score,
+    generate_pdf_report
 )
 from styles import (
     get_custom_css, 
@@ -35,30 +39,34 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Inject custom CSS
 st.markdown(get_custom_css(), unsafe_allow_html=True)
 
 # Custom CSS for larger fonts
 st.markdown("""
 <style>
-    .big-text {
-        font-size: 1.2rem !important;
-        line-height: 1.8 !important;
-    }
     .section-header {
-        font-size: 1.5rem !important;
+        font-size: 1.4rem !important;
         font-weight: 600 !important;
-        margin-top: 1.5rem !important;
-        margin-bottom: 1rem !important;
+        margin-top: 1rem !important;
         color: #0891b2 !important;
     }
     .interpretation-text {
-        font-size: 1.15rem !important;
-        line-height: 1.9 !important;
+        font-size: 1.1rem !important;
+        line-height: 1.8 !important;
         padding: 1rem !important;
         background: rgba(8, 145, 178, 0.05) !important;
         border-radius: 8px !important;
     }
+    .quality-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    .quality-good { background: #10b981; color: white; }
+    .quality-warn { background: #f59e0b; color: white; }
+    .quality-bad { background: #ef4444; color: white; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -72,6 +80,9 @@ if "api_client" not in st.session_state:
 if "prediction_result" not in st.session_state:
     st.session_state.prediction_result = None
 
+if "uploaded_image_bytes" not in st.session_state:
+    st.session_state.uploaded_image_bytes = None
+
 if "batch_results" not in st.session_state:
     st.session_state.batch_results = None
 
@@ -82,37 +93,24 @@ if "batch_results" not in st.session_state:
 with st.sidebar:
     st.markdown("### Settings")
     
-    # API Status
     is_healthy, health_data = st.session_state.api_client.health_check()
     if is_healthy:
         st.success("API Online")
     else:
         st.error("API Offline")
-        st.caption(health_data.get("error", "Cannot connect"))
     
     st.divider()
     
-    # Disease Type Selector
     st.markdown("### Analysis Type")
     disease_type = st.radio(
-        "Select analysis type:",
+        "Select:",
         options=["brain_mri", "pneumonia", "retina"],
-        format_func=lambda x: {
-            "brain_mri": "Brain MRI",
-            "pneumonia": "Chest X-Ray",
-            "retina": "Retinal Scan"
-        }[x],
+        format_func=lambda x: {"brain_mri": "Brain MRI", "pneumonia": "Chest X-Ray", "retina": "Retinal Scan"}[x],
         label_visibility="collapsed"
     )
     
-    # Show disease info
-    info = get_disease_info(disease_type)
-    if info:
-        st.caption(info["description"])
-    
     st.divider()
     
-    # Options
     st.markdown("### Options")
     generate_gradcam = st.toggle("Generate Grad-CAM", value=True)
     batch_mode = st.toggle("Batch Mode", value=False)
@@ -132,16 +130,15 @@ with st.sidebar:
 st.markdown(render_header(), unsafe_allow_html=True)
 
 if not is_healthy:
-    st.warning("Cannot connect to FastAPI backend. Ensure server is running.")
+    st.warning("Cannot connect to FastAPI backend.")
     st.code("uvicorn src.api.main:app --port 8001", language="bash")
     st.stop()
 
 
 # =====================================================
-# SINGLE IMAGE MODE - STACKED LAYOUT
+# SINGLE IMAGE MODE
 # =====================================================
 if not batch_mode:
-    # Upload Section
     st.markdown("### Upload Image")
     
     col_upload, col_preview = st.columns([3, 1])
@@ -159,11 +156,36 @@ if not batch_mode:
         if not is_valid:
             st.error(error_msg)
         else:
+            uploaded_file.seek(0)
+            image_bytes = uploaded_file.read()
+            st.session_state.uploaded_image_bytes = image_bytes
+            
+            # IMAGE QUALITY CHECK
+            quality = check_image_quality(image_bytes)
+            
+            with st.expander("Image Quality Check", expanded=len(quality.get("issues", [])) > 0):
+                q_col1, q_col2, q_col3 = st.columns(3)
+                with q_col1:
+                    st.metric("Resolution", f"{quality['resolution'][0]}x{quality['resolution'][1]}")
+                with q_col2:
+                    st.metric("File Size", f"{quality['file_size_mb']} MB")
+                with q_col3:
+                    if quality['blur_score'] is not None:
+                        st.metric("Sharpness", f"{quality['blur_score']:.0f}")
+                    else:
+                        st.metric("Sharpness", "N/A")
+                
+                if quality["issues"]:
+                    for issue in quality["issues"]:
+                        if "too low" in issue or "exceeds" in issue or "blurry" in issue.lower():
+                            st.warning(issue)
+                        else:
+                            st.info(issue)
+                else:
+                    st.success("Image quality looks good!")
+            
             if st.button("Analyze Image", type="primary"):
                 with st.spinner("Analyzing..."):
-                    uploaded_file.seek(0)
-                    image_bytes = uploaded_file.read()
-                    
                     success, result = st.session_state.api_client.predict(
                         image_bytes=image_bytes,
                         filename=uploaded_file.name,
@@ -177,7 +199,7 @@ if not batch_mode:
                         st.error(result.get('error', 'Prediction failed'))
     
     # =====================================================
-    # RESULTS - STACKED SECTIONS
+    # RESULTS SECTION
     # =====================================================
     result = st.session_state.prediction_result
     
@@ -185,6 +207,18 @@ if not batch_mode:
         confidence = result.get("confidence", 0)
         predicted_class = result.get("predicted_class", "N/A")
         disease_names = {"brain_mri": "Brain MRI", "pneumonia": "Chest X-Ray", "retina": "Retinal"}
+        
+        # Get severity info
+        disease_info = get_disease_info(disease_type)
+        pred_key = predicted_class.lower().replace(" ", "_")
+        medical_details = disease_info.get("medical_details", {})
+        class_info = None
+        for key, value in medical_details.items():
+            if key.lower().replace("_", "") == pred_key.replace("_", ""):
+                class_info = value
+                break
+        severity = class_info.get("severity", "Unknown") if class_info else "Unknown"
+        severity_score = get_severity_score(severity)
         
         # -------------------------------------------------
         # SECTION 1: ANALYSIS RESULTS
@@ -195,17 +229,47 @@ if not batch_mode:
         if confidence < 0.5:
             st.warning("Low Confidence - Manual review recommended")
         
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Predicted Condition", predicted_class)
-        col2.metric("Confidence Score", format_confidence(confidence))
-        col3.metric("Analysis Type", disease_names.get(disease_type, disease_type))
+        # Metrics row
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Predicted Condition", predicted_class)
+        m2.metric("Confidence", format_confidence(confidence))
+        m3.metric("Analysis Type", disease_names.get(disease_type, disease_type))
         
         # Probability table
         probs = result.get("probabilities", {})
         if probs:
-            st.markdown("**Probability Distribution:**")
             prob_data = [{"Class": k, "Probability": f"{v*100:.1f}%"} for k, v in sorted(probs.items(), key=lambda x: -x[1])]
             st.dataframe(pd.DataFrame(prob_data), use_container_width=True, hide_index=True)
+        
+        # -------------------------------------------------
+        # SEVERITY GAUGE
+        # -------------------------------------------------
+        st.markdown("**Severity Gauge**")
+        
+        gauge_colors = [(0, "#10b981"), (0.35, "#f59e0b"), (0.65, "#ef4444"), (1, "#dc2626")]
+        
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=severity_score,
+            title={'text': f"Severity: {severity}"},
+            gauge={
+                'axis': {'range': [0, 100], 'tickwidth': 1},
+                'bar': {'color': "#0891b2"},
+                'steps': [
+                    {'range': [0, 25], 'color': "#d1fae5"},
+                    {'range': [25, 50], 'color': "#fef3c7"},
+                    {'range': [50, 75], 'color': "#fed7aa"},
+                    {'range': [75, 100], 'color': "#fecaca"}
+                ],
+                'threshold': {
+                    'line': {'color': "black", 'width': 2},
+                    'thickness': 0.8,
+                    'value': severity_score
+                }
+            }
+        ))
+        fig.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
+        st.plotly_chart(fig, use_container_width=True)
         
         # -------------------------------------------------
         # SECTION 2: AI INTERPRETATION
@@ -213,95 +277,124 @@ if not batch_mode:
         st.divider()
         st.markdown('<p class="section-header">2. AI Interpretation</p>', unsafe_allow_html=True)
         
-        disease_info = get_disease_info(disease_type)
-        pred_key = predicted_class.lower().replace(" ", "_")
-        medical_details = disease_info.get("medical_details", {})
-        
-        class_info = None
-        for key, value in medical_details.items():
-            if key.lower().replace("_", "") == pred_key.replace("_", ""):
-                class_info = value
-                break
-        
         if class_info:
             interpretation = f"""
 <div class="interpretation-text">
-<p><strong>Detection Summary:</strong><br>
-The AI model analyzed this {disease_names.get(disease_type, 'medical')} image and identified patterns consistent with <strong>{predicted_class}</strong> with <strong>{format_confidence(confidence)}</strong> confidence.</p>
+<p><strong>Detection:</strong> The AI identified patterns consistent with <strong>{predicted_class}</strong> ({format_confidence(confidence)} confidence).</p>
 
-<p><strong>What is {predicted_class}?</strong><br>
-{class_info.get('description', 'Information not available.')}</p>
+<p><strong>What is {predicted_class}?</strong><br>{class_info.get('description', 'N/A')}</p>
 
-<p><strong>Severity Assessment:</strong> <span style="color: {'#ef4444' if 'High' in class_info.get('severity', '') or 'Critical' in class_info.get('severity', '') else '#f59e0b' if 'Moderate' in class_info.get('severity', '') else '#10b981'}; font-weight: bold;">{class_info.get('severity', 'Unknown')}</span><br>
-{class_info.get('prevalence', '')}</p>
+<p><strong>Severity:</strong> <span style="color: {'#ef4444' if severity_score >= 65 else '#f59e0b' if severity_score >= 35 else '#10b981'}; font-weight: bold;">{severity}</span></p>
 
-<p><strong>Recommended Next Steps:</strong><br>
-{class_info.get('recommendation', 'Please consult a qualified healthcare professional for proper evaluation and diagnosis.')}</p>
+<p><strong>Recommendation:</strong><br>{class_info.get('recommendation', 'Consult a healthcare professional.')}</p>
 </div>
 """
             st.markdown(interpretation, unsafe_allow_html=True)
-        else:
-            st.info(f"Detailed interpretation for '{predicted_class}' is not available.")
         
         # -------------------------------------------------
-        # SECTION 3: GRAD-CAM VISUALIZATION
+        # SECTION 3: ENSEMBLE MODEL COMPARISON (Retina only)
         # -------------------------------------------------
-        if generate_gradcam and result.get("gradcam_url"):
+        if disease_type == "retina" and result.get("individual_predictions"):
             st.divider()
-            st.markdown('<p class="section-header">3. Grad-CAM Visualization</p>', unsafe_allow_html=True)
+            st.markdown('<p class="section-header">3. Ensemble Model Comparison</p>', unsafe_allow_html=True)
             
-            gradcam_url = result["gradcam_url"]
+            st.caption("The retina analysis uses an ensemble of 3 EfficientNet models")
             
-            if gradcam_url.startswith("/static/"):
-                local_path = gradcam_url.replace("/static/", "outputs/")
-                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                full_path = os.path.join(project_root, local_path.replace("/", os.sep))
+            ind_preds = result["individual_predictions"]
+            if ind_preds:
+                model_data = []
+                for model_name, pred_data in ind_preds.items():
+                    if isinstance(pred_data, dict):
+                        model_data.append({
+                            "Model": model_name.replace("efficientnet", "EfficientNet").upper(),
+                            "Prediction": pred_data.get("predicted_class", "N/A"),
+                            "Confidence": f"{pred_data.get('confidence', 0)*100:.1f}%"
+                        })
                 
-                col_img, col_space = st.columns([2, 1])
-                with col_img:
+                if model_data:
+                    st.dataframe(pd.DataFrame(model_data), use_container_width=True, hide_index=True)
+            else:
+                st.info("Individual model predictions not available")
+        
+        # -------------------------------------------------
+        # SECTION 4: GRAD-CAM VISUALIZATION (Comparison)
+        # -------------------------------------------------
+        if generate_gradcam:
+            st.divider()
+            section_num = "4" if disease_type == "retina" else "3"
+            st.markdown(f'<p class="section-header">{section_num}. Grad-CAM Visualization</p>', unsafe_allow_html=True)
+            
+            # Side-by-side comparison
+            gradcam_url = result.get("gradcam_url")
+            comparison_url = result.get("gradcam_comparison_url")
+            
+            img_col1, img_col2 = st.columns(2)
+            
+            with img_col1:
+                st.markdown("**Original Image**")
+                if st.session_state.uploaded_image_bytes:
+                    st.image(st.session_state.uploaded_image_bytes, width=350)
+            
+            with img_col2:
+                st.markdown("**Grad-CAM Overlay**")
+                if gradcam_url and gradcam_url.startswith("/static/"):
+                    local_path = gradcam_url.replace("/static/", "outputs/")
+                    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    full_path = os.path.join(project_root, local_path.replace("/", os.sep))
+                    
                     if os.path.exists(full_path):
-                        st.image(full_path, caption="Model Attention Heatmap", width=500)
+                        st.image(full_path, width=350)
                     else:
                         gradcam_bytes = st.session_state.api_client.get_gradcam_image(gradcam_url)
                         if gradcam_bytes:
-                            st.image(gradcam_bytes, caption="Model Attention Heatmap", width=500)
+                            st.image(gradcam_bytes, width=350)
                         else:
-                            st.info("Grad-CAM image not available")
+                            st.info("Grad-CAM not available")
+                else:
+                    st.info("Grad-CAM not generated")
             
             # -------------------------------------------------
-            # SECTION 4: GRAD-CAM INTERPRETATION
+            # SECTION 5: GRAD-CAM INTERPRETATION
             # -------------------------------------------------
             st.divider()
-            st.markdown('<p class="section-header">4. How to Read Grad-CAM</p>', unsafe_allow_html=True)
+            section_num = "5" if disease_type == "retina" else "4"
+            st.markdown(f'<p class="section-header">{section_num}. How to Read Grad-CAM</p>', unsafe_allow_html=True)
             
             gradcam_guide = get_gradcam_interpretation()
-            
             guide_html = f"""
 <div class="interpretation-text">
-<p><strong>What is Grad-CAM?</strong><br>
-{gradcam_guide['description']}</p>
-
-<p><strong>Color Interpretation:</strong></p>
-<ul style="font-size: 1.1rem; line-height: 1.8;">
+<p><strong>What is Grad-CAM?</strong><br>{gradcam_guide['description']}</p>
+<p><strong>Color Legend:</strong></p>
+<ul>
 """
             for color, meaning in gradcam_guide['colors'].items():
                 guide_html += f"<li><strong>{color}:</strong> {meaning}</li>"
-            
             guide_html += f"""
 </ul>
-
-<p><strong>Clinical Significance:</strong><br>
-{gradcam_guide['clinical_note']}</p>
-
+<p><strong>Clinical Note:</strong> {gradcam_guide['clinical_note']}</p>
 <p style="color: #6b7280; font-style: italic;">{gradcam_guide['disclaimer']}</p>
 </div>
 """
             st.markdown(guide_html, unsafe_allow_html=True)
         
-        elif generate_gradcam:
-            st.divider()
-            st.markdown('<p class="section-header">3. Grad-CAM Visualization</p>', unsafe_allow_html=True)
-            st.info("Grad-CAM was not generated. Try re-analyzing the image.")
+        # -------------------------------------------------
+        # PDF EXPORT
+        # -------------------------------------------------
+        st.divider()
+        st.markdown("### Export Report")
+        
+        if st.button("Generate PDF Report", type="secondary"):
+            with st.spinner("Generating PDF..."):
+                try:
+                    pdf_bytes = generate_pdf_report(result, disease_type)
+                    st.download_button(
+                        "Download PDF",
+                        data=pdf_bytes,
+                        file_name="medical_analysis_report.pdf",
+                        mime="application/pdf"
+                    )
+                except Exception as e:
+                    st.error(f"PDF generation failed: {e}")
     
     else:
         st.info("Upload an image and click 'Analyze' to see results")
@@ -323,16 +416,16 @@ else:
         st.info(f"{len(uploaded_files)} file(s) selected")
         
         if st.button("Analyze All", type="primary"):
-            progress_bar = st.progress(0)
+            progress = st.progress(0)
             status = st.empty()
             
-            images = [(f.read(), f.name) for f in uploaded_files]
+            images = []
             for f in uploaded_files:
                 f.seek(0)
-            images = [(f.read(), f.name) for f in uploaded_files]
+                images.append((f.read(), f.name))
             
             def update(c, t):
-                progress_bar.progress(c / t)
+                progress.progress(c / t)
                 status.text(f"Processing {c}/{t}...")
             
             results = st.session_state.api_client.predict_batch(images, disease_type, update)
@@ -343,12 +436,10 @@ else:
         results = st.session_state.batch_results
         
         successful = sum(1 for r in results if r.get("success"))
-        failed = len(results) - successful
-        
         c1, c2, c3 = st.columns(3)
         c1.metric("Total", len(results))
         c2.metric("Successful", successful)
-        c3.metric("Failed", failed)
+        c3.metric("Failed", len(results) - successful)
         
         table_data = []
         for r in results:
@@ -356,15 +447,13 @@ else:
                 table_data.append({
                     "Filename": r.get("filename"),
                     "Prediction": r.get("predicted_class"),
-                    "Confidence": format_confidence(r.get("confidence", 0)),
-                    "Status": "Success"
+                    "Confidence": format_confidence(r.get("confidence", 0))
                 })
             else:
                 table_data.append({
                     "Filename": r.get("filename"),
                     "Prediction": "-",
-                    "Confidence": "-",
-                    "Status": f"Failed: {r.get('error', '')[:25]}"
+                    "Confidence": "-"
                 })
         
         st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)

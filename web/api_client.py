@@ -332,3 +332,204 @@ def get_gradcam_interpretation() -> Dict[str, str]:
         "clinical_note": "Hot regions typically indicate pathological features like lesions, opacities, or abnormal structures that the model identified as diagnostically significant.",
         "disclaimer": "Grad-CAM is an explainability tool and should be interpreted alongside clinical findings, not as a standalone diagnostic."
     }
+
+
+def check_image_quality(image_bytes: bytes) -> Dict[str, Any]:
+    """
+    Check image quality before analysis.
+    
+    Returns dict with:
+        - is_valid: bool
+        - issues: list of detected issues
+        - resolution: (width, height)
+        - file_size_mb: float
+        - blur_score: float (higher = sharper)
+    """
+    try:
+        from PIL import Image
+        import numpy as np
+        from io import BytesIO
+        
+        # Load image
+        img = Image.open(BytesIO(image_bytes))
+        width, height = img.size
+        
+        issues = []
+        
+        # Check resolution
+        if width < 100 or height < 100:
+            issues.append("Image resolution too low (min 100x100)")
+        elif width < 200 or height < 200:
+            issues.append("Low resolution may affect accuracy")
+        
+        if width > 4000 or height > 4000:
+            issues.append("Very high resolution - may slow processing")
+        
+        # Check file size
+        file_size_mb = len(image_bytes) / (1024 * 1024)
+        if file_size_mb > 10:
+            issues.append("File size exceeds 10MB limit")
+        
+        # Check blur (Laplacian variance)
+        blur_score = 0
+        try:
+            gray = img.convert("L")
+            gray_array = np.array(gray, dtype=np.float32)
+            
+            # Laplacian kernel
+            laplacian = np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]], dtype=np.float32)
+            from scipy.ndimage import convolve
+            laplacian_img = convolve(gray_array, laplacian)
+            blur_score = float(laplacian_img.var())
+            
+            if blur_score < 100:
+                issues.append("Image appears blurry")
+            elif blur_score < 500:
+                issues.append("Image may be slightly blurry")
+        except ImportError:
+            # scipy not available, skip blur check
+            blur_score = -1
+        except Exception:
+            blur_score = -1
+        
+        # Check if grayscale or color
+        mode = img.mode
+        
+        return {
+            "is_valid": len([i for i in issues if "too low" in i or "exceeds" in i]) == 0,
+            "issues": issues,
+            "resolution": (width, height),
+            "file_size_mb": round(file_size_mb, 2),
+            "blur_score": round(blur_score, 2) if blur_score >= 0 else None,
+            "mode": mode
+        }
+    except Exception as e:
+        return {
+            "is_valid": False,
+            "issues": [f"Cannot read image: {str(e)}"],
+            "resolution": (0, 0),
+            "file_size_mb": 0,
+            "blur_score": None,
+            "mode": None
+        }
+
+
+def get_severity_score(severity: str) -> int:
+    """Convert severity text to numeric score (0-100)."""
+    severity_map = {
+        "None": 0,
+        "Low": 20,
+        "Low to Moderate": 35,
+        "Moderate": 50,
+        "Moderate to High": 65,
+        "High": 80,
+        "Critical": 100
+    }
+    return severity_map.get(severity, 50)
+
+
+def generate_pdf_report(
+    result: Dict[str, Any],
+    disease_type: str,
+    image_bytes: bytes = None,
+    gradcam_bytes: bytes = None
+) -> bytes:
+    """
+    Generate PDF report from prediction results.
+    
+    Args:
+        result: Prediction result dict
+        disease_type: Type of analysis
+        image_bytes: Original image (optional)
+        gradcam_bytes: Grad-CAM image (optional)
+    
+    Returns:
+        PDF bytes
+    """
+    from fpdf import FPDF
+    from datetime import datetime
+    from io import BytesIO
+    import tempfile
+    import os
+    
+    class PDF(FPDF):
+        def header(self):
+            self.set_font('Helvetica', 'B', 16)
+            self.cell(0, 10, 'Multi-Disease Detection Report', 0, 1, 'C')
+            self.set_font('Helvetica', '', 10)
+            self.cell(0, 5, f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}', 0, 1, 'C')
+            self.ln(5)
+        
+        def footer(self):
+            self.set_y(-15)
+            self.set_font('Helvetica', 'I', 8)
+            self.cell(0, 10, 'DISCLAIMER: For research purposes only. Not a medical diagnosis.', 0, 0, 'C')
+    
+    pdf = PDF()
+    pdf.add_page()
+    
+    # Analysis Summary
+    pdf.set_font('Helvetica', 'B', 14)
+    pdf.cell(0, 10, 'Analysis Summary', 0, 1)
+    pdf.set_font('Helvetica', '', 11)
+    
+    disease_names = {"brain_mri": "Brain MRI", "pneumonia": "Chest X-Ray", "retina": "Retinal Scan"}
+    
+    pdf.cell(60, 8, 'Analysis Type:', 0, 0)
+    pdf.cell(0, 8, disease_names.get(disease_type, disease_type), 0, 1)
+    
+    pdf.cell(60, 8, 'Predicted Condition:', 0, 0)
+    pdf.set_font('Helvetica', 'B', 11)
+    pdf.cell(0, 8, result.get('predicted_class', 'N/A'), 0, 1)
+    pdf.set_font('Helvetica', '', 11)
+    
+    confidence = result.get('confidence', 0)
+    pdf.cell(60, 8, 'Confidence Score:', 0, 0)
+    pdf.cell(0, 8, f'{confidence * 100:.1f}%', 0, 1)
+    
+    pdf.ln(5)
+    
+    # Probability Distribution
+    pdf.set_font('Helvetica', 'B', 14)
+    pdf.cell(0, 10, 'Probability Distribution', 0, 1)
+    pdf.set_font('Helvetica', '', 10)
+    
+    probs = result.get('probabilities', {})
+    for class_name, prob in sorted(probs.items(), key=lambda x: -x[1]):
+        pdf.cell(60, 7, class_name, 0, 0)
+        pdf.cell(0, 7, f'{prob * 100:.1f}%', 0, 1)
+    
+    pdf.ln(5)
+    
+    # Medical Information
+    disease_info = get_disease_info(disease_type)
+    pred_key = result.get('predicted_class', '').lower().replace(' ', '_')
+    medical_details = disease_info.get('medical_details', {})
+    
+    class_info = None
+    for key, value in medical_details.items():
+        if key.lower().replace('_', '') == pred_key.replace('_', ''):
+            class_info = value
+            break
+    
+    if class_info:
+        pdf.set_font('Helvetica', 'B', 14)
+        pdf.cell(0, 10, 'Medical Information', 0, 1)
+        pdf.set_font('Helvetica', '', 10)
+        
+        pdf.cell(40, 8, 'Severity:', 0, 0)
+        pdf.cell(0, 8, class_info.get('severity', 'Unknown'), 0, 1)
+        
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(0, 8, 'Description:', 0, 1)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.multi_cell(0, 6, class_info.get('description', 'N/A'))
+        
+        pdf.ln(3)
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.cell(0, 8, 'Recommendation:', 0, 1)
+        pdf.set_font('Helvetica', '', 10)
+        pdf.multi_cell(0, 6, class_info.get('recommendation', 'Consult a healthcare professional.'))
+    
+    # Return PDF bytes
+    return pdf.output()

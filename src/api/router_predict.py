@@ -81,15 +81,33 @@ async def predict(
                 result = classifier.explain(tmp_path, disease_type)
                 
                 gradcam_url = None
-                if "gradcam" in result and "overlay_path" in result["gradcam"]:
-                    # Convert local path to URL
-                    # Static files are mounted at /static -> outputs/
-                    # So outputs/gradcam/... becomes /static/gradcam/...
-                    overlay_path = result["gradcam"]["overlay_path"]
-                    # Remove 'outputs/' prefix if present
-                    if overlay_path.startswith("outputs/") or overlay_path.startswith("outputs\\"):
-                        overlay_path = overlay_path[8:]  # Remove 'outputs/'
-                    gradcam_url = f"/static/{overlay_path.replace(os.sep, '/')}"
+                gradcam_comparison_url = None
+                
+                if "gradcam" in result:
+                    gradcam_data = result["gradcam"]
+                    
+                    # Overlay path
+                    if "overlay_path" in gradcam_data:
+                        overlay_path = gradcam_data["overlay_path"]
+                        if overlay_path.startswith("outputs/") or overlay_path.startswith("outputs\\"):
+                            overlay_path = overlay_path[8:]
+                        gradcam_url = f"/static/{overlay_path.replace(os.sep, '/')}"
+                    
+                    # Comparison path
+                    if "comparison_path" in gradcam_data:
+                        comp_path = gradcam_data["comparison_path"]
+                        if comp_path.startswith("outputs/") or comp_path.startswith("outputs\\"):
+                            comp_path = comp_path[8:]
+                        gradcam_comparison_url = f"/static/{comp_path.replace(os.sep, '/')}"
+                
+                # Get individual predictions for retina ensemble
+                individual_preds = None
+                if disease_type == "retina" and "individual_heatmaps" in result.get("gradcam", {}):
+                    # Extract individual model info from result
+                    individual_preds = {}
+                    for key, data in result.get("gradcam", {}).get("individual_heatmaps", {}).items():
+                        if isinstance(data, dict):
+                            individual_preds[key] = data
                 
                 return PredictionResponse(
                     disease_type=disease_type,
@@ -97,7 +115,9 @@ async def predict(
                     class_id=result["prediction"]["class_id"],
                     confidence=result["prediction"]["confidence"],
                     probabilities=result["prediction"]["probabilities"],
-                    gradcam_url=gradcam_url
+                    gradcam_url=gradcam_url,
+                    gradcam_comparison_url=gradcam_comparison_url,
+                    individual_predictions=individual_preds
                 )
             else:
                 # Just prediction
