@@ -274,7 +274,7 @@ def render_header():
     """Return HTML for the main header."""
     return """
     <div class="main-header">
-        <h1>🏥 Multi-Disease Detection System</h1>
+        <h1>Multi-Disease Detection System</h1>
         <p>AI-powered medical image analysis for Brain MRI, Chest X-Ray, and Retinal Scans</p>
     </div>
     """
@@ -284,10 +284,10 @@ def render_footer():
     """Return HTML for the footer disclaimer."""
     return """
     <div class="footer">
-        <p class="footer-warning">⚠️ IMPORTANT DISCLAIMER</p>
+        <p class="footer-warning">IMPORTANT DISCLAIMER</p>
         <p>This system is for <strong>research and educational purposes only</strong> and is not intended as a medical diagnosis tool.</p>
         <p>Always consult qualified healthcare professionals for medical advice and diagnosis.</p>
-        <p style="margin-top: 1rem; color: #94a3b8;">© 2024 Multi-Disease Detection System | Built with Streamlit & FastAPI</p>
+        <p style="margin-top: 1rem; color: #94a3b8;">&copy; 2025 Multi-Disease Detection System | Built with Streamlit &amp; FastAPI</p>
     </div>
     """
 

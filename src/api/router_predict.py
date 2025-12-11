@@ -83,7 +83,12 @@ async def predict(
                 gradcam_url = None
                 if "gradcam" in result and "overlay_path" in result["gradcam"]:
                     # Convert local path to URL
+                    # Static files are mounted at /static -> outputs/
+                    # So outputs/gradcam/... becomes /static/gradcam/...
                     overlay_path = result["gradcam"]["overlay_path"]
+                    # Remove 'outputs/' prefix if present
+                    if overlay_path.startswith("outputs/") or overlay_path.startswith("outputs\\"):
+                        overlay_path = overlay_path[8:]  # Remove 'outputs/'
                     gradcam_url = f"/static/{overlay_path.replace(os.sep, '/')}"
                 
                 return PredictionResponse(

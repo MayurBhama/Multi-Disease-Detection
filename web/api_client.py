@@ -229,21 +229,18 @@ def get_disease_info(disease_type: str) -> Dict[str, Any]:
             "name": "Brain MRI Tumor Classification",
             "description": "Classifies brain MRI scans into tumor types",
             "classes": ["Glioma", "Meningioma", "No Tumor", "Pituitary"],
-            "icon": "🧠",
             "color": "#6366f1"
         },
         "pneumonia": {
             "name": "Chest X-Ray Pneumonia Detection",
             "description": "Detects pneumonia from chest X-ray images",
             "classes": ["Normal", "Pneumonia"],
-            "icon": "🫁",
             "color": "#06b6d4"
         },
         "retina": {
             "name": "Diabetic Retinopathy Screening",
             "description": "Grades diabetic retinopathy severity from fundus images",
             "classes": ["No DR", "Mild", "Moderate", "Severe", "Proliferative"],
-            "icon": "👁️",
             "color": "#10b981"
         }
     }
