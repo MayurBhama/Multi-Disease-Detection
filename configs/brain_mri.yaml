@@ -1,10 +1,10 @@
 dataset:
-  name: "pneumonia"
+  name: "brain_mri"
 
-  raw_dir: "data/raw/pneumonia"
-  test_dir: "data/raw/pneumonia_test"
+  raw_dir: "data/raw/brain_mri/Training"
+  test_dir: "data/raw/brain_mri/Testing"
 
-  image_size: [256, 256]
+  image_size: [224, 224]
   batch_size: 32
   validation_split: 0.1
   seed: 123
@@ -12,8 +12,7 @@ dataset:
 augmentation:
   enabled: true
 
-  # MEDICAL-SAFE AUGMENTATION ONLY
-  rotation: 0                # Do NOT rotate X-rays
+  rotation: 0.02
   width_shift: 0.05
   height_shift: 0.05
   zoom: 0.05
@@ -26,21 +25,20 @@ model:
   architecture: "xception"
   pretrained_weights: "imagenet"
 
-  # Phase 1: Fully frozen backbone
   trainable_layers: 0
 
   dense_units_1: 256
-  dropout_1: 0.4
-
-  dense_units_2: 64
+  dropout_1: 0.3
+  dense_units_2: 128
   dropout_2: 0.3
 
-  output_activation: "sigmoid"
+  output_classes: 4
+  output_activation: "softmax"
 
 training:
-  optimizer: "adamax"
+  optimizer: "adam"
   learning_rate: 0.0005
-  epochs: 25
+  epochs: 30
   early_stopping_patience: 5
 
   lr_scheduler: true
@@ -48,17 +46,17 @@ training:
   reduce_lr_patience: 2
 
 paths:
-  model_dir: "models/pneumonia"
-  model_filename: "pneumonia_xception.h5"
-  mlflow_experiment: "Pneumonia_Training"
+  model_dir: "models/brain_mri"
+  model_filename: "brain_mri_efficientnetb0"   # SavedModel folder name
+  mlflow_experiment: "BrainMRI_Training"
 
 logging:
-  mlflow_tracking_uri: "file:./mlruns"   # local MLflow storage folder
+  mlflow_tracking_uri: "file:./mlruns"
 
 fine_tuning:
   enabled: true
   unfreeze_after_epochs: 5
-  trainable_layers: 30  # unfreeze last 30 layers after classifier head training
+  trainable_layers: 40
 
 class_weights:
   enabled: true

@@ -1,0 +1,95 @@
+# EfficientNetV2-S Configuration for Diabetic Retinopathy
+# Optimized for RTX 4060 8GB VRAM
+
+dataset:
+  name: "aptos2019_diabetic_retinopathy"
+  csv_path: "data/raw/retina/train.csv"
+  train_dir: "data/raw/retina/train_images"
+  test_csv_path: "data/raw/retina/test.csv"
+  test_dir: "data/raw/retina/test_images"
+  image_size: [512, 512]  # Optimized for 8GB VRAM
+  batch_size: 2  # Safe for 8GB VRAM with EfficientNetV2-S
+  validation_split: 0.2
+  seed: 42
+
+model:
+  name: "efficientnetv2_s"
+  architecture: "efficientnetv2s"
+  pretrained_weights: "imagenet"
+  input_shape: [512, 512, 3]
+  dense_layers: [512, 256]
+  dropout_rate: 0.5
+  num_classes: 5
+  use_attention: true
+  use_ordinal_output: false
+  l2_regularization: 0.0001
+
+training:
+  # Phase 1: Head training
+  head_epochs: 10
+  head_learning_rate: 0.001
+  
+  # Phase 2: Fine-tuning
+  finetune_epochs: 40
+  finetune_learning_rate: 0.0001
+  finetune_trainable_layers: 150
+  
+  # Learning rate schedule
+  warmup_epochs: 3
+  final_learning_rate: 0.000001
+  lr_schedule: "cosine"  # cosine, cosine_restarts, exponential
+  
+  optimizer: "adamw"
+  weight_decay: 0.0001
+
+augmentation:
+  enabled: true
+  strength: "strong"  # light, medium, strong
+  use_mixup: true
+  use_cutmix: true
+  mixup_probability: 0.3
+  cutmix_probability: 0.3
+
+loss:
+  type: "combined_ordinal"  # focal, ordinal_focal, combined_ordinal
+  focal_gamma: 2.0
+  ordinal_weight: 0.5
+  label_smoothing: 0.1
+  use_class_weights: true
+
+data_balancing:
+  use_oversampling: true
+  oversample_minority_factor: 2
+
+callbacks:
+  early_stopping:
+    enabled: true
+    monitor: "val_qwk"
+    patience: 10
+    mode: "max"
+    restore_best_weights: true
+  
+  reduce_lr:
+    enabled: true
+    monitor: "val_qwk"
+    factor: 0.5
+    patience: 4
+    mode: "max"
+    min_lr: 0.0000001
+  
+  checkpoint:
+    enabled: true
+    monitor: "val_qwk"
+    mode: "max"
+    save_best_only: true
+
+output:
+  model_dir: "models/retina_efficientnetv2"
+  best_model: "models/retina_efficientnetv2/best_efficientnetv2s.h5"
+  final_model: "models/retina_efficientnetv2/final_efficientnetv2s.h5"
+  tensorboard_log: "logs/retina_efficientnetv2"
+  predictions_csv: "predictions_efficientnetv2s.csv"
+
+inference:
+  use_tta: true  # Test-time augmentation
+  tta_augments: 5

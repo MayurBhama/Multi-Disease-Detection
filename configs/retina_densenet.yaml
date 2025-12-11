@@ -1,0 +1,75 @@
+dataset:
+  name: "aptos2019_diabetic_retinopathy"
+  raw_dir: "data/raw/retina/train_images"
+  test_dir: "data/raw/retina/test_images"  # For predictions
+  csv_path: "data/raw/retina/train.csv"
+  test_csv_path: "data/raw/retina/test.csv"  # For predictions
+  
+  image_size: [512, 512]
+  batch_size: 4
+  validation_split: 0.2
+  seed: 42
+
+model:
+  architecture: "densenet201"
+  weights: "imagenet"
+  input_shape: [512, 512, 3]
+  
+  # Dense layers
+  dense_1: 512
+  dropout_1: 0.5
+  dense_2: 256
+  dropout_2: 0.3
+  
+  num_classes: 5
+
+training:
+  epochs: 40
+  initial_lr: 0.0001
+  final_lr: 1.0e-6
+  warmup_epochs: 2
+  
+  optimizer: "adam"
+  
+fine_tuning:
+  enabled: true
+  unfreeze_after: 5
+  trainable_layers: 100
+
+augmentation:
+  enabled: true
+  horizontal_flip: true
+  vertical_flip: true
+  rotation: 0.15
+  zoom: 0.15
+  contrast: 0.15
+  brightness: 0.10
+
+loss:
+  type: "focal"
+  gamma: 2.0
+  alpha: 0.25
+
+class_weights:
+  enabled: true
+
+callbacks:
+  early_stopping:
+    monitor: "val_qwk"
+    patience: 8
+    mode: "max"
+  
+  reduce_lr:
+    monitor: "val_qwk"
+    factor: 0.3
+    patience: 3
+    mode: "max"
+    min_lr: 1.0e-7
+
+paths:
+  model_dir: "models/retina_densenet"
+  best_weights: "models/retina_densenet/best_densenet201.h5"
+  final_weights: "models/retina_densenet/final_densenet201.h5"
+
+logging:
+  verbose: 1

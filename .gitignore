@@ -232,3 +232,54 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 /data
+
+# =====================================================
+# PROJECT-SPECIFIC IGNORES
+# =====================================================
+
+# Output directories (generated files)
+outputs/
+*.png
+*.jpg
+*.jpeg
+
+# Logs
+logs/
+
+# Test scripts (keep examples but ignore quick tests)
+quick_test.py
+test_*.py
+!tests/
+
+# Weights files (large binary files)
+*.weights.h5
+*.onnx
+*.tflite
+*.pb
+
+# TensorFlow/Keras
+*.ckpt
+saved_model/
+checkpoint
+
+# Jupyter/Notebook outputs
+*.csv
+wandb/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temp files
+*.tmp
+*.temp
+*.bak
+
