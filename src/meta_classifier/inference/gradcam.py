@@ -18,6 +18,7 @@ import cv2
 import tensorflow as tf
 
 from src.utils.logger import get_logger
+from src.utils.exception import PredictionError
 
 logger = get_logger(__name__)
 
@@ -220,44 +221,52 @@ class GradCAM:
             
         Returns:
             Heatmap as numpy array (H, W)
+            
+        Raises:
+            PredictionError: If heatmap generation fails
         """
-        # Ensure batch dimension
-        if len(image.shape) == 3:
-            image = np.expand_dims(image, axis=0)
-        
-        image_tensor = tf.cast(image, tf.float32)
-        
-        # Get predicted class if not specified
-        if class_idx is None:
-            predictions = self.model.predict(image, verbose=0)
-            if predictions.shape[-1] == 1:
-                class_idx = 1 if predictions[0, 0] >= 0.5 else 0
-            else:
-                class_idx = np.argmax(predictions[0])
-        
-        # Compute gradients
-        conv_outputs, gradients = self._compute_gradients(image_tensor, class_idx)
-        
-        # Global average pooling of gradients
-        weights = tf.reduce_mean(gradients, axis=(1, 2))
-        
-        # Weighted combination of conv outputs
-        conv_outputs = conv_outputs[0]
-        weights = weights[0]
-        
-        heatmap = tf.reduce_sum(weights * conv_outputs, axis=-1)
-        
-        # ReLU to keep only positive contributions
-        heatmap = tf.maximum(heatmap, 0)
-        
-        # Convert to numpy
-        heatmap = heatmap.numpy()
-        
-        # Normalize
-        if normalize and heatmap.max() > 0:
-            heatmap = heatmap / heatmap.max()
-        
-        return heatmap
+        try:
+            # Ensure batch dimension
+            if len(image.shape) == 3:
+                image = np.expand_dims(image, axis=0)
+            
+            image_tensor = tf.cast(image, tf.float32)
+            
+            # Get predicted class if not specified
+            if class_idx is None:
+                predictions = self.model.predict(image, verbose=0)
+                if predictions.shape[-1] == 1:
+                    class_idx = 1 if predictions[0, 0] >= 0.5 else 0
+                else:
+                    class_idx = np.argmax(predictions[0])
+            
+            # Compute gradients
+            conv_outputs, gradients = self._compute_gradients(image_tensor, class_idx)
+            
+            # Global average pooling of gradients
+            weights = tf.reduce_mean(gradients, axis=(1, 2))
+            
+            # Weighted combination of conv outputs
+            conv_outputs = conv_outputs[0]
+            weights = weights[0]
+            
+            heatmap = tf.reduce_sum(weights * conv_outputs, axis=-1)
+            
+            # ReLU to keep only positive contributions
+            heatmap = tf.maximum(heatmap, 0)
+            
+            # Convert to numpy
+            heatmap = heatmap.numpy()
+            
+            # Normalize
+            if normalize and heatmap.max() > 0:
+                heatmap = heatmap / heatmap.max()
+            
+            return heatmap
+            
+        except Exception as e:
+            logger.error(f"Failed to generate heatmap: {e}")
+            raise PredictionError(f"Grad-CAM heatmap generation failed: {e}")
     
     def overlay_heatmap(
         self,

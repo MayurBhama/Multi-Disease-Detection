@@ -40,6 +40,7 @@ from .utils import (
     sigmoid_to_binary
 )
 from src.utils.logger import get_logger
+from src.utils.exception import PredictionError, ModelLoadError
 
 logger = get_logger(__name__)
 
@@ -131,36 +132,40 @@ class MetaClassifier:
         
         Classes: glioma, meningioma, notumor, pituitary
         """
-        # Load model if not cached
-        if self._brain_mri_model is None:
-            self._brain_mri_model = self.loader.load_model("brain_mri")
-        
-        # Get configs
-        class_labels = self._get_class_labels("brain_mri")
-        preprocess_config = self._get_preprocessing_config("brain_mri")
-        
-        # Preprocess
-        img = preprocess_brain_mri(image_path)
-        
-        # Predict
-        predictions = self._brain_mri_model.predict(img, verbose=0)[0]
-        
-        # Format result
-        class_names = class_labels["classes"]
-        predicted_class, class_id, confidence = get_prediction_result(predictions, class_names)
-        
-        return {
-            "disease_type": "brain_mri",
-            "predicted_class": predicted_class,
-            "class_id": class_id,
-            "confidence": round(confidence, 6),
-            "probabilities": format_probabilities(predictions, class_names),
-            "preprocessing": preprocess_config,
-            "model_info": {
-                "architecture": "EfficientNetB0",
-                "num_classes": len(class_names)
+        try:
+            # Load model if not cached
+            if self._brain_mri_model is None:
+                self._brain_mri_model = self.loader.load_model("brain_mri")
+            
+            # Get configs
+            class_labels = self._get_class_labels("brain_mri")
+            preprocess_config = self._get_preprocessing_config("brain_mri")
+            
+            # Preprocess
+            img = preprocess_brain_mri(image_path)
+            
+            # Predict
+            predictions = self._brain_mri_model.predict(img, verbose=0)[0]
+            
+            # Format result
+            class_names = class_labels["classes"]
+            predicted_class, class_id, confidence = get_prediction_result(predictions, class_names)
+            
+            return {
+                "disease_type": "brain_mri",
+                "predicted_class": predicted_class,
+                "class_id": class_id,
+                "confidence": round(confidence, 6),
+                "probabilities": format_probabilities(predictions, class_names),
+                "preprocessing": preprocess_config,
+                "model_info": {
+                    "architecture": "EfficientNetB0",
+                    "num_classes": len(class_names)
+                }
             }
-        }
+        except Exception as e:
+            logger.error(f"Brain MRI prediction failed: {e}")
+            raise PredictionError(f"Brain MRI prediction failed: {e}")
     
     def _predict_pneumonia(self, image_path: str) -> Dict[str, Any]:
         """
@@ -168,39 +173,43 @@ class MetaClassifier:
         
         Classes: NORMAL, PNEUMONIA
         """
-        # Load model if not cached
-        if self._pneumonia_model is None:
-            self._pneumonia_model = self.loader.load_model("pneumonia")
-        
-        # Get configs
-        class_labels = self._get_class_labels("pneumonia")
-        preprocess_config = self._get_preprocessing_config("pneumonia")
-        
-        # Preprocess
-        img = preprocess_pneumonia(image_path)
-        
-        # Predict (sigmoid output for binary)
-        prediction = self._pneumonia_model.predict(img, verbose=0)[0][0]
-        
-        # Convert sigmoid to binary result
-        class_names = class_labels["classes"]
-        predicted_class, class_id, confidence, probabilities = sigmoid_to_binary(
-            prediction, threshold=0.5, class_names=class_names
-        )
-        
-        return {
-            "disease_type": "pneumonia",
-            "predicted_class": predicted_class,
-            "class_id": class_id,
-            "confidence": round(confidence, 6),
-            "probabilities": probabilities,
-            "preprocessing": preprocess_config,
-            "model_info": {
-                "architecture": "Xception",
-                "num_classes": len(class_names),
-                "output_type": "sigmoid"
+        try:
+            # Load model if not cached
+            if self._pneumonia_model is None:
+                self._pneumonia_model = self.loader.load_model("pneumonia")
+            
+            # Get configs
+            class_labels = self._get_class_labels("pneumonia")
+            preprocess_config = self._get_preprocessing_config("pneumonia")
+            
+            # Preprocess
+            img = preprocess_pneumonia(image_path)
+            
+            # Predict (sigmoid output for binary)
+            prediction = self._pneumonia_model.predict(img, verbose=0)[0][0]
+            
+            # Convert sigmoid to binary result
+            class_names = class_labels["classes"]
+            predicted_class, class_id, confidence, probabilities = sigmoid_to_binary(
+                prediction, threshold=0.5, class_names=class_names
+            )
+            
+            return {
+                "disease_type": "pneumonia",
+                "predicted_class": predicted_class,
+                "class_id": class_id,
+                "confidence": round(confidence, 6),
+                "probabilities": probabilities,
+                "preprocessing": preprocess_config,
+                "model_info": {
+                    "architecture": "Xception",
+                    "num_classes": len(class_names),
+                    "output_type": "sigmoid"
+                }
             }
-        }
+        except Exception as e:
+            logger.error(f"Pneumonia prediction failed: {e}")
+            raise PredictionError(f"Pneumonia prediction failed: {e}")
     
     def _predict_retina(self, image_path: str, return_individual: bool = False) -> Dict[str, Any]:
         """
