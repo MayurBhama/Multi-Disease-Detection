@@ -1,0 +1,16 @@
+# Streamlit Cloud Configuration
+# Place this file in your repository root
+
+[theme]
+primaryColor = "#0891b2"
+backgroundColor = "#0f172a"
+secondaryBackgroundColor = "#1e293b"
+textColor = "#f1f5f9"
+
+[server]
+maxUploadSize = 10
+enableXsrfProtection = true
+enableCORS = false
+
+[browser]
+gatherUsageStats = false
