@@ -1,23 +1,19 @@
 # Multi-Disease Detection from Medical Images: A Comprehensive Study
 
----
+<div align="center">
 
-## Current Limitations and Areas for Improvement
+**AI-Powered Medical Image Diagnostic Assistant**
 
-Before diving in, here are the known limitations and potential improvements for this project:
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![TensorFlow 2.15+](https://img.shields.io/badge/TensorFlow-2.15+-orange.svg)](https://www.tensorflow.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-| Limitation | Current State | Suggested Improvement |
-|------------|---------------|----------------------|
-| **Dataset Size** | APTOS 2019: 3,662 retina images | Expand with IDRiD, Messidor-2, EyePACS datasets |
-| **Model Architecture** | EfficientNet ensemble for retina | Add Vision Transformer (ViT) for better global context |
-| **QWK Score (Retina)** | 0.85+ (validation) | Target 0.90+ with more aggressive augmentation |
-| **Mild/Severe Classes** | Lower recall (~50-55%) | Use class-specific thresholds and focal loss tuning |
-| **External Validation** | Same dataset testing | Validate on independent hospital datasets |
-| **Real-time Inference** | ~2-3 seconds per image | Optimize with TensorRT/ONNX for <500ms |
-| **Explainability** | Basic Grad-CAM | Add Integrated Gradients, SHAP for richer explanations |
-| **Auto-detection** | Simple CNN classifier | Use more robust multi-task meta-classifier |
-| **Uncertainty Estimation** | No calibration | Add Monte Carlo Dropout for confidence calibration |
-| **Multi-modal Input** | Single image only | Support multiple views/time series for retina |
+*Unified medical image diagnostic system with automatic modality detection, specialized deep learning models, and clinical-grade explainability.*
+
+**[Live Demo](https://multi-disease-detectiongit-vc6m2gtxwyzqvfryrco578.streamlit.app/)**
+
+</div>
 
 ---
 
@@ -88,7 +84,7 @@ We built a **unified medical image diagnostic assistant** that handles three cri
 | Challenge | Why It's Hard | Our Solution |
 |-----------|--------------|--------------|
 | **Class Imbalance** | ~50% of retina images are "normal" | Minority oversampling + focal loss |
-| **Ordinal Classes** | Mild → Moderate → Severe is ordered | Ordinal-aware loss functions |
+| **Ordinal Classes** | Mild - Moderate - Severe is ordered | Ordinal-aware loss functions |
 | **Subtle Differences** | Mild vs Moderate DR looks similar | Ensemble of multiple architectures |
 | **Black Box Problem** | Doctors need to understand WHY | Grad-CAM visualizations |
 | **Different Modalities** | Fundus, MRI, X-ray are very different | Domain-specific preprocessing |
@@ -106,16 +102,16 @@ Diabetic Retinopathy is a diabetes complication affecting blood vessels in the r
 ```
 DISEASE PROGRESSION
 
-Stage 0: No DR         →  No visible changes
-           ↓ (can take years)
-Stage 1: Mild          →  Microaneurysms (tiny blood vessel bulges)
-           ↓ (months to years)
-Stage 2: Moderate      →  More microaneurysms + some hemorrhages
-           ↓ (6-12 months if untreated)
-Stage 3: Severe        →  Many hemorrhages, venous abnormalities
-           ↓ (can be rapid)
-Stage 4: Proliferative →  New blood vessel growth (neovascularization)
-                          HIGH RISK OF BLINDNESS
+Stage 0: No DR         ->  No visible changes
+           | (can take years)
+Stage 1: Mild          ->  Microaneurysms (tiny blood vessel bulges)
+           | (months to years)
+Stage 2: Moderate      ->  More microaneurysms + some hemorrhages
+           | (6-12 months if untreated)
+Stage 3: Severe        ->  Many hemorrhages, venous abnormalities
+           | (can be rapid)
+Stage 4: Proliferative ->  New blood vessel growth (neovascularization)
+                           HIGH RISK OF BLINDNESS
 ```
 
 | Class | Name | Key Features | Treatment Urgency |
@@ -123,7 +119,7 @@ Stage 4: Proliferative →  New blood vessel growth (neovascularization)
 | 0 | **No DR** | Normal retina, no visible lesions | Annual screening |
 | 1 | **Mild** | Microaneurysms only (tiny red dots) | Re-examine in 12 months |
 | 2 | **Moderate** | Multiple microaneurysms + exudates | Re-examine in 6 months |
-| 3 | **Severe** | ≥20 hemorrhages, venous beading | Urgent referral |
+| 3 | **Severe** | >=20 hemorrhages, venous beading | Urgent referral |
 | 4 | **Proliferative** | New vessels growing abnormally | Immediate treatment |
 
 #### Why This Classification is Hard
@@ -173,7 +169,7 @@ BRAIN MRI CLASSIFICATION
           +-------+-------+-------+-------+
           |       |       |       |
        Glioma  Menin.  No Tumor  Pituitary
-         ↓       ↓         ↓         ↓
+          |       |         |         |
        Surgery  Monitor  Clear  Endocrine
 ```
 
@@ -222,11 +218,11 @@ The infiltrates (white patches) indicate:
 ```
 CLASS DISTRIBUTION VISUALIZATION
 
-Class 0 (No DR):        ████████████████████████████  1,805 (49.3%)
-Class 1 (Mild):         ████                            370 (10.1%)
-Class 2 (Moderate):     ████████████████               999 (27.3%)
-Class 3 (Severe):       ██                              193 (5.3%)
-Class 4 (Proliferative): ███                            295 (8.1%)
+Class 0 (No DR):        ############################  1,805 (49.3%)
+Class 1 (Mild):         ####                            370 (10.1%)
+Class 2 (Moderate):     ################               999 (27.3%)
+Class 3 (Severe):       ##                              193 (5.3%)
+Class 4 (Proliferative): ###                            295 (8.1%)
 
 IMBALANCE RATIO:
 - Largest class (No DR): 1,805 images
@@ -280,10 +276,10 @@ OUR PREPROCESSING HANDLES:
 ```
 BRAIN MRI CLASS DISTRIBUTION
 
-Glioma:     ████████████   ~1,300 images
-Meningioma: ████████████   ~1,300 images
-Pituitary:  ████████████   ~1,300 images
-No Tumor:   ███████████    ~1,200 images
+Glioma:     ############   ~1,300 images
+Meningioma: ############   ~1,300 images
+Pituitary:  ############   ~1,300 images
+No Tumor:   ###########    ~1,200 images
 
 RELATIVELY BALANCED - Less preprocessing needed
 ```
@@ -301,8 +297,8 @@ RELATIVELY BALANCED - Less preprocessing needed
 ```
 PNEUMONIA CLASS DISTRIBUTION
 
-Normal:    █████████          1,341 images (25.7%)
-Pneumonia: ██████████████████ 3,875 images (74.3%)
+Normal:    #########          1,341 images (25.7%)
+Pneumonia: ################## 3,875 images (74.3%)
 
 IMBALANCED TOWARD PNEUMONIA:
 - More pneumonia samples than normal
@@ -472,8 +468,8 @@ STEP 4: NO ROTATION OR FLIP!
         |
         v
 STEP 5: Only Safe Augmentations
-        - Small width/height shift (±5%)
-        - Small zoom (±5%)
+        - Small width/height shift (+/-5%)
+        - Small zoom (+/-5%)
         - NO brightness/contrast changes
         - Medical professionals rely on intensity
         |
@@ -519,7 +515,7 @@ For diabetic retinopathy, we use an **ensemble of 3 EfficientNet models** becaus
                               v
               +-------------------------------+
               |   Weighted Probability Fusion |
-              | P_final = Σ(wi × Pi) / Σ(wi)  |
+              | P_final = Sum(wi x Pi) / Sum(wi)  |
               +-------------------------------+
                               |
                               v
@@ -698,7 +694,7 @@ THE CATASTOPHIC FORGETTING PROBLEM
 If we unfreeze everything from the start:
 
 Epoch 1: [Backbone has ImageNet features]
-         Random head destroys gradients ⚡
+         Random head destroys gradients
          
 Epoch 2: [Backbone weights scrambled!]
          Lost valuable pre-trained features
@@ -748,15 +744,15 @@ training:
 ```
 COSINE LEARNING RATE SCHEDULE
 
-LR │
-   │  ╭─────╮
-   │ ╱       ╲
-   │╱         ╲
-   │           ╲
-   │            ╲
-   │             ╲
-   │              ╲__________
-   └─────────────────────────► Epoch
+LR |
+   |  .-----.
+   | /       \
+   |/         \
+   |           \
+   |            \
+   |             \
+   |              \__________
+   +--------------------------> Epoch
      0    10    20    30   40
 
 Phase 1:  Warmup (epochs 1-3)
@@ -782,18 +778,18 @@ Instead of using original images directly:
 
 Original Images:        After Mixup:
 +--------+ +--------+   +-------------+
-|  Img A | |  Img B |   | λ×A + (1-λ)×B |
-| Class 0| | Class 2| → |  Mixed Image  |
+|  Img A | |  Img B |   | L*A + (1-L)*B |
+| Class 0| | Class 2| -> |  Mixed Image  |
 +--------+ +--------+   | Soft label:   |
-                        | 0.7×[0] + 0.3×[2] |
+                        | 0.7*[0] + 0.3*[2] |
                         +-------------+
 
-λ (lambda) ~ Beta(0.2, 0.2) distribution
+L (lambda) ~ Beta(0.2, 0.2) distribution
 
 EXAMPLE:
-λ = 0.7
-Image_mixed = 0.7 × Image_A + 0.3 × Image_B
-Label_mixed = 0.7 × [1,0,0,0,0] + 0.3 × [0,0,1,0,0]
+L = 0.7
+Image_mixed = 0.7 * Image_A + 0.3 * Image_B
+Label_mixed = 0.7 * [1,0,0,0,0] + 0.3 * [0,0,1,0,0]
             = [0.7, 0, 0.3, 0, 0]  # Soft label!
 
 WHY THIS HELPS:
@@ -817,7 +813,7 @@ Instead of blending globally (Mixup), CutMix cuts and pastes:
                              +--------+
 
 A region of B is pasted onto A!
-Label = Area_ratio × Label_A + (1 - Area_ratio) × Label_B
+Label = Area_ratio * Label_A + (1 - Area_ratio) * Label_B
 
 WHY CUTMIX FOR RETINA?
 - Lesions are localized (not everywhere in image)
@@ -838,8 +834,8 @@ Diabetic retinopathy has **ordinal classes** (ordered from 0 to 4). Standard cro
 STANDARD CROSS-ENTROPY PROBLEM
 
 True: Class 2 (Moderate)
-Pred: Class 0 (No DR)     → Penalty: Same
-Pred: Class 3 (Severe)    → Penalty: Same (WRONG!)
+Pred: Class 0 (No DR)     -> Penalty: Same
+Pred: Class 3 (Severe)    -> Penalty: Same (WRONG!)
 
 But clinically:
 - Predicting 0 when true is 2 = DANGEROUS (patient loses treatment)
@@ -893,8 +889,8 @@ All examples weighted equally, even if model is 99% confident
 Focal Loss with gamma=2:
 --------------------------
 
-Probability  | Standard CE | Focal Loss (γ=2) | Ratio
-of correct   |   -log(p)   | -(1-p)² × log(p) |
+Probability  | Standard CE | Focal Loss (g=2) | Ratio
+of correct   |   -log(p)   | -(1-p)^2 * log(p) |
 -------------|-------------|------------------|-------
     0.95     |    0.05     |      0.0001      | 500x less!
     0.80     |    0.22     |      0.009       | 24x less
@@ -934,7 +930,7 @@ CLINICAL INTERPRETATION:
 ```
 LABEL SMOOTHING EXPLAINED
 
-Without smoothing:                With smoothing (ε=0.1):
+Without smoothing:                With smoothing (e=0.1):
 Class 0: [1, 0, 0, 0, 0]         Class 0: [0.92, 0.02, 0.02, 0.02, 0.02]
 Class 2: [0, 0, 1, 0, 0]         Class 2: [0.02, 0.02, 0.92, 0.02, 0.02]
 
@@ -959,17 +955,17 @@ MEDICAL IMPORTANCE:
 ```
 RETINA CLASS DISTRIBUTION
 
-Class 0 (No DR):     ████████████████████████████  1,805 (49.3%)
-Class 1 (Mild):      ████                            370 (10.1%)
-Class 2 (Moderate):  ████████████████               999 (27.3%)
-Class 3 (Severe):    ██                              193 (5.3%)
-Class 4 (Prolif.):   ███                             295 (8.1%)
+Class 0 (No DR):     ############################  1,805 (49.3%)
+Class 1 (Mild):      ####                            370 (10.1%)
+Class 2 (Moderate):  ################               999 (27.3%)
+Class 3 (Severe):    ##                              193 (5.3%)
+Class 4 (Prolif.):   ###                             295 (8.1%)
 
 NAIVE MODEL STRATEGY:
 "Just predict 'No DR' for every image"
-→ 49.3% accuracy!
-→ 0% detection of disease
-→ USELESS for clinical practice
+-> 49.3% accuracy!
+-> 0% detection of disease
+-> USELESS for clinical practice
 ```
 
 ### 8.2 Our Multi-Pronged Solution
@@ -1018,8 +1014,8 @@ class_weights = compute_class_weight(
 ```
 LOSS CALCULATION WITH CLASS WEIGHTS
 
-True Class 0 predicted wrong: Loss × 0.54 = lower penalty
-True Class 3 predicted wrong: Loss × 4.60 = higher penalty!
+True Class 0 predicted wrong: Loss * 0.54 = lower penalty
+True Class 3 predicted wrong: Loss * 4.60 = higher penalty!
 
 The model is punished more for missing rare classes.
 This forces it to learn their distinctive features.
@@ -1060,8 +1056,8 @@ OUR APPROACH:
 ```
 ACCURACY COMPARISON
 
-Model A: "Predict 'No DR' for everyone"     → Accuracy: 49.3%
-Model B: "Learned actual patterns"          → Accuracy: 82%
+Model A: "Predict 'No DR' for everyone"     -> Accuracy: 49.3%
+Model B: "Learned actual patterns"          -> Accuracy: 82%
 
 Model B is clearly better, but 49.3% accuracy baseline is VERY EASY to beat.
 
@@ -1093,7 +1089,7 @@ Class      1    1   OK  1   4   9
 
 Smaller numbers = smaller penalty = better
 
-QWK = 1 - (Σ weighted_errors) / (Σ expected_weighted_errors)
+QWK = 1 - (Sum weighted_errors) / (Sum expected_weighted_errors)
 
 INTERPRETATION:
 QWK <  0.0 : Worse than random
@@ -1153,13 +1149,13 @@ THE BLACK BOX PROBLEM
 
 Traditional Deep Learning:
 
-[Medical Image] → [Complex Neural Network] → [Prediction: Severe DR]
+[Medical Image] -> [Complex Neural Network] -> [Prediction: Severe DR]
 
 Doctor's Questions:
-❓ "Why did the model say Severe?"
-❓ "What features did it see?"
-❓ "Can I trust this prediction?"
-❓ "Did it look at the right area?"
+? "Why did the model say Severe?"
+? "What features did it see?"
+? "Can I trust this prediction?"
+? "Did it look at the right area?"
 
 Without explainability, AI is NOT clinically useful!
 ```
@@ -1172,7 +1168,7 @@ Without explainability, AI is NOT clinically useful!
 GRAD-CAM ALGORITHM
 
 STEP 1: Forward pass
-        [Image] → [Model] → [Class probabilities]
+        [Image] -> [Model] -> [Class probabilities]
         
 STEP 2: Get prediction
         Predicted class: "Severe DR" with 87% confidence
@@ -1186,13 +1182,13 @@ STEP 4: Weight feature maps
         importance_k = mean(gradients_k)
         
 STEP 5: Create heatmap
-        heatmap = ReLU(Σ importance_k × feature_map_k)
+        heatmap = ReLU(Sum importance_k * feature_map_k)
         - ReLU keeps only positive contributions
         - Negative = features that reduce prediction
         
 STEP 6: Overlay on image
         Resize heatmap to image size
-        Apply colormap (blue → green → red)
+        Apply colormap (blue -> green -> red)
         Blend with original image
         
 OUTPUT: Image showing WHERE model is looking
@@ -1203,18 +1199,18 @@ OUTPUT: Image showing WHERE model is looking
 ```
 GRAD-CAM IMPLEMENTATION
 
-┌─────────────────────────────────────────────────────────┐
-│  Disease        │  Target Layer         │  What to Look For            │
-├─────────────────┼───────────────────────┼──────────────────────────────┤
-│  Retina (DR)    │  Last block output    │  Hemorrhages, exudates       │
-│                 │  EfficientNet         │  Microaneurysms locations    │
-├─────────────────┼───────────────────────┼──────────────────────────────┤
-│  Brain MRI      │  Final conv layer     │  Tumor location              │
-│                 │  EfficientNetB0       │  Abnormal tissue mass        │
-├─────────────────┼───────────────────────┼──────────────────────────────┤
-│  Pneumonia      │  Block14 output       │  Lung infiltrates            │
-│                 │  Xception             │  Cloudy regions in lung      │
-└─────────────────┴───────────────────────┴──────────────────────────────┘
++-----------------+-----------------------+------------------------------+
+|  Disease        |  Target Layer         |  What to Look For            |
++-----------------+-----------------------+------------------------------+
+|  Retina (DR)    |  Last block output    |  Hemorrhages, exudates       |
+|                 |  EfficientNet         |  Microaneurysms locations    |
++-----------------+-----------------------+------------------------------+
+|  Brain MRI      |  Final conv layer     |  Tumor location              |
+|                 |  EfficientNetB0       |  Abnormal tissue mass        |
++-----------------+-----------------------+------------------------------+
+|  Pneumonia      |  Block14 output       |  Lung infiltrates            |
+|                 |  Xception             |  Cloudy regions in lung      |
++-----------------+-----------------------+------------------------------+
 ```
 
 ### 10.4 Clinical Interpretation of Grad-CAM
@@ -1230,21 +1226,21 @@ For Diabetic Retinopathy:
 |  Prediction: Moderate DR (82%)   |
 |                                  |
 |  Heatmap shows:                  |
-|  🔴 Red regions: hemorrhages     |
-|  🟡 Yellow: microaneurysms       |
-|  🔵 Blue: normal vessels         |
+|  Red regions: hemorrhages        |
+|  Yellow: microaneurysms          |
+|  Blue: normal vessels            |
 +----------------------------------+
 
 WHAT THIS TELLS THE DOCTOR:
-✓ Model is looking at actual lesions (not artifacts)
-✓ Highlighted regions match clinical expectations
-✓ Prediction is based on correct evidence
-✓ Doctor can verify or override based on context
+[OK] Model is looking at actual lesions (not artifacts)
+[OK] Highlighted regions match clinical expectations
+[OK] Prediction is based on correct evidence
+[OK] Doctor can verify or override based on context
 
 POTENTIAL RED FLAGS:
-⚠ Heatmap focuses on image border (artifact!)
-⚠ Heatmap ignores obvious lesion (model missed it)
-⚠ Heatmap highlights blood vessels only (not lesions)
+[!] Heatmap focuses on image border (artifact!)
+[!] Heatmap ignores obvious lesion (model missed it)
+[!] Heatmap highlights blood vessels only (not lesions)
 ```
 
 ---
@@ -1293,13 +1289,13 @@ ENSEMBLE VS SINGLE MODEL COMPARISON
 
 Individual Model Performance (Retina):
 
-Model           │  QWK   │  Accuracy  │  Parameters
-────────────────┼────────┼────────────┼─────────────
-EfficientNetV2-S│  0.82  │   79%      │   21M
-EfficientNetB2  │  0.83  │   80%      │   9M
-EfficientNetB0  │  0.79  │   77%      │   5M
-────────────────┼────────┼────────────┼─────────────
-ENSEMBLE        │  0.85+ │   82%+     │   35M (combined)
+Model           |  QWK   |  Accuracy  |  Parameters
+----------------|--------|------------|-------------
+EfficientNetV2-S|  0.82  |   79%      |   21M
+EfficientNetB2  |  0.83  |   80%      |   9M
+EfficientNetB0  |  0.79  |   77%      |   5M
+----------------|--------|------------|-------------
+ENSEMBLE        |  0.85+ |   82%+     |   35M (combined)
 
 ENSEMBLE GAINS:
 - +3-6% improvement in QWK
@@ -1313,13 +1309,13 @@ ENSEMBLE GAINS:
 ```
 MODEL STRENGTH ANALYSIS
 
-✅ EXCELS AT:
+EXCELS AT:
    - Clear-cut cases (obvious disease or clearly normal)
    - Proliferative DR (distinct neovascularization)
    - Good quality images (well-lit, focused)
    - Large lesions (easy to detect)
 
-⚠️ STRUGGLES WITH:
+STRUGGLES WITH:
    - Borderline cases (Mild vs Moderate)
    - Poor image quality (blurry, artifacts)
    - Subtle lesions (early stage disease)
@@ -1374,39 +1370,43 @@ CLINICAL RECOMMENDATION:
 
 ### 13.1 System Architecture
 
-```mermaid
-flowchart TB
-    subgraph Input["Image Input"]
-        IMG[Medical Image]
-    end
-    
-    subgraph Meta["Meta Classifier"]
-        DETECT[Auto-Detect Modality]
-        ROUTE[Route to Specialized Model]
-    end
-    
-    subgraph Models["Specialized Models"]
-        RETINA["Retina Ensemble<br/>(EfficientNet V2-S/B2/B0)"]
-        BRAIN["Brain MRI<br/>(EfficientNetB0)"]
-        PNEUMO["Pneumonia<br/>(Xception)"]
-    end
-    
-    subgraph Output["Output"]
-        PRED[Prediction + Confidence]
-        GRADCAM[Grad-CAM Heatmap]
-        PROBS[Class Probabilities]
-    end
-    
-    IMG --> DETECT
-    DETECT --> ROUTE
-    ROUTE --> RETINA
-    ROUTE --> BRAIN
-    ROUTE --> PNEUMO
-    RETINA --> PRED
-    BRAIN --> PRED
-    PNEUMO --> PRED
-    PRED --> GRADCAM
-    PRED --> PROBS
+```
+SYSTEM ARCHITECTURE OVERVIEW
+
+                         +-------------------+
+                         |   Medical Image   |
+                         |      Input        |
+                         +---------+---------+
+                                   |
+                                   v
+                         +-------------------+
+                         |  Meta Classifier  |
+                         | (Auto-Detect Type)|
+                         +---------+---------+
+                                   |
+              +--------------------+--------------------+
+              |                    |                    |
+              v                    v                    v
+    +------------------+  +------------------+  +------------------+
+    | Retina Ensemble  |  |   Brain MRI      |  |    Pneumonia     |
+    | EfficientNet     |  |  EfficientNetB0  |  |     Xception     |
+    | V2-S/B2/B0       |  |                  |  |                  |
+    +--------+---------+  +--------+---------+  +--------+---------+
+             |                     |                     |
+             +---------------------+---------------------+
+                                   |
+                                   v
+                         +-------------------+
+                         | Prediction Output |
+                         | + Confidence      |
+                         +---------+---------+
+                                   |
+                    +--------------+--------------+
+                    |                             |
+                    v                             v
+          +------------------+          +------------------+
+          | Grad-CAM Heatmap |          |Class Probabilities|
+          +------------------+          +------------------+
 ```
 
 ### 13.2 Tech Stack
@@ -1480,35 +1480,35 @@ explanation = classifier.explain("path/to/image.png", disease_type="retina")
 
 ```
 Multi-Disease-Detection/
-├── configs/                    # Model configurations
-│   ├── brain_mri.yaml
-│   ├── pneumonia.yaml
-│   └── retina_efficientnetv2.yaml
-├── data/                       # Data directory (DVC tracked)
-├── models/                     # Trained model weights
-│   ├── brain_mri/
-│   ├── pneumonia/
-│   └── retina/
-├── outputs/                    # Training outputs
-│   └── production/
-│       ├── graphs/             # Training visualizations
-│       └── models/             # Best model weights
-├── src/                        # Source code
-│   ├── api/                    # FastAPI backend
-│   ├── data_loader/            # Data loading utilities
-│   ├── meta_classifier/        # Core prediction engine
-│   │   ├── predictor.py        # MetaClassifier
-│   │   ├── retina_ensemble.py  # Ensemble logic
-│   │   └── inference/          # Grad-CAM generators
-│   ├── preprocessing/          # Image preprocessing
-│   ├── training/               # Training scripts
-│   │   ├── train_efficientnet_ensemble_v2.py
-│   │   ├── train_brain.py
-│   │   └── train_pneumonia.py
-│   └── utils/                  # Logger, exceptions
-├── web/                        # Streamlit frontend
-├── requirements.txt            # Core dependencies
-└── README.md                   # This file
+|-- configs/                    # Model configurations
+|   |-- brain_mri.yaml
+|   |-- pneumonia.yaml
+|   +-- retina_efficientnetv2.yaml
+|-- data/                       # Data directory (DVC tracked)
+|-- models/                     # Trained model weights
+|   |-- brain_mri/
+|   |-- pneumonia/
+|   +-- retina/
+|-- outputs/                    # Training outputs
+|   +-- production/
+|       |-- graphs/             # Training visualizations
+|       +-- models/             # Best model weights
+|-- src/                        # Source code
+|   |-- api/                    # FastAPI backend
+|   |-- data_loader/            # Data loading utilities
+|   |-- meta_classifier/        # Core prediction engine
+|   |   |-- predictor.py        # MetaClassifier
+|   |   |-- retina_ensemble.py  # Ensemble logic
+|   |   +-- inference/          # Grad-CAM generators
+|   |-- preprocessing/          # Image preprocessing
+|   |-- training/               # Training scripts
+|   |   |-- train_efficientnet_ensemble_v2.py
+|   |   |-- train_brain.py
+|   |   +-- train_pneumonia.py
+|   +-- utils/                  # Logger, exceptions
+|-- web/                        # Streamlit frontend
+|-- requirements.txt            # Core dependencies
++-- README.md                   # This file
 ```
 
 ### 13.6 API Reference
