@@ -2,7 +2,7 @@
 title: Multi-Disease Detection Backend
 emoji: 🏥
 colorFrom: blue
-colorTo: cyan
+colorTo: indigo
 sdk: docker
 pinned: false
 license: mit
