@@ -77,48 +77,62 @@ async def predict(
             classifier = get_classifier()
             
             if generate_gradcam:
-                # Use explain() which includes prediction + Grad-CAM
-                result = classifier.explain(tmp_path, disease_type)
-                
-                gradcam_url = None
-                gradcam_comparison_url = None
-                
-                if "gradcam" in result:
-                    gradcam_data = result["gradcam"]
+                # Try to use explain() which includes prediction + Grad-CAM
+                try:
+                    result = classifier.explain(tmp_path, disease_type)
                     
-                    # Overlay path
-                    if "overlay_path" in gradcam_data:
-                        overlay_path = gradcam_data["overlay_path"]
-                        if overlay_path.startswith("outputs/") or overlay_path.startswith("outputs\\"):
-                            overlay_path = overlay_path[8:]
-                        gradcam_url = f"/static/{overlay_path.replace(os.sep, '/')}"
+                    gradcam_url = None
+                    gradcam_comparison_url = None
                     
-                    # Comparison path
-                    if "comparison_path" in gradcam_data:
-                        comp_path = gradcam_data["comparison_path"]
-                        if comp_path.startswith("outputs/") or comp_path.startswith("outputs\\"):
-                            comp_path = comp_path[8:]
-                        gradcam_comparison_url = f"/static/{comp_path.replace(os.sep, '/')}"
-                
-                # Get individual predictions for retina ensemble
-                individual_preds = None
-                if disease_type == "retina" and "individual_heatmaps" in result.get("gradcam", {}):
-                    # Extract individual model info from result
-                    individual_preds = {}
-                    for key, data in result.get("gradcam", {}).get("individual_heatmaps", {}).items():
-                        if isinstance(data, dict):
-                            individual_preds[key] = data
-                
-                return PredictionResponse(
-                    disease_type=disease_type,
-                    predicted_class=result["prediction"]["class"],
-                    class_id=result["prediction"]["class_id"],
-                    confidence=result["prediction"]["confidence"],
-                    probabilities=result["prediction"]["probabilities"],
-                    gradcam_url=gradcam_url,
-                    gradcam_comparison_url=gradcam_comparison_url,
-                    individual_predictions=individual_preds
-                )
+                    if "gradcam" in result:
+                        gradcam_data = result["gradcam"]
+                        
+                        # Overlay path
+                        if "overlay_path" in gradcam_data:
+                            overlay_path = gradcam_data["overlay_path"]
+                            if overlay_path.startswith("outputs/") or overlay_path.startswith("outputs\\"):
+                                overlay_path = overlay_path[8:]
+                            gradcam_url = f"/static/{overlay_path.replace(os.sep, '/')}"
+                        
+                        # Comparison path
+                        if "comparison_path" in gradcam_data:
+                            comp_path = gradcam_data["comparison_path"]
+                            if comp_path.startswith("outputs/") or comp_path.startswith("outputs\\"):
+                                comp_path = comp_path[8:]
+                            gradcam_comparison_url = f"/static/{comp_path.replace(os.sep, '/')}"
+                    
+                    # Get individual predictions for retina ensemble
+                    individual_preds = None
+                    if disease_type == "retina" and "individual_heatmaps" in result.get("gradcam", {}):
+                        # Extract individual model info from result
+                        individual_preds = {}
+                        for key, data in result.get("gradcam", {}).get("individual_heatmaps", {}).items():
+                            if isinstance(data, dict):
+                                individual_preds[key] = data
+                    
+                    return PredictionResponse(
+                        disease_type=disease_type,
+                        predicted_class=result["prediction"]["class"],
+                        class_id=result["prediction"]["class_id"],
+                        confidence=result["prediction"]["confidence"],
+                        probabilities=result["prediction"]["probabilities"],
+                        gradcam_url=gradcam_url,
+                        gradcam_comparison_url=gradcam_comparison_url,
+                        individual_predictions=individual_preds
+                    )
+                except Exception as gradcam_error:
+                    # Grad-CAM failed, fall back to prediction only
+                    logger.warning(f"Grad-CAM failed, falling back to prediction only: {gradcam_error}")
+                    result = classifier.predict(tmp_path, disease_type)
+                    
+                    return PredictionResponse(
+                        disease_type=result["disease_type"],
+                        predicted_class=result["predicted_class"],
+                        class_id=result["class_id"],
+                        confidence=result["confidence"],
+                        probabilities=result["probabilities"],
+                        gradcam_url=None
+                    )
             else:
                 # Just prediction
                 result = classifier.predict(tmp_path, disease_type)

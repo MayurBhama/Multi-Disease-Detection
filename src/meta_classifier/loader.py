@@ -28,7 +28,7 @@ MODEL_CONFIGS = {
         "model_file": "brain_mri_efficientnetb0.weights.h5",
         "architecture": "efficientnetb0",
         "input_shape": (224, 224, 3),
-        "num_classes": 4,
+        "num_classes": 4,  # glioma, meningioma, notumor, pituitary
     },
     "pneumonia": {
         "model_file": "pneumonia_xception.weights.h5",
