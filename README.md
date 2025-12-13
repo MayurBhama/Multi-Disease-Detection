@@ -1,3 +1,13 @@
+---
+title: Multi-Disease Detection Backend
+emoji: 🏥
+colorFrom: blue
+colorTo: cyan
+sdk: docker
+pinned: false
+license: mit
+---
+
 # Multi-Disease-Detection
 # Multi-Med Detect
 
