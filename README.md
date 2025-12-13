@@ -1541,15 +1541,6 @@ curl -X POST "http://localhost:8001/predict" \
 
 ---
 
-## Learning Resources
-
-1. Gulshan V, et al. "Development and Validation of a Deep Learning Algorithm for Detection of Diabetic Retinopathy in Retinal Fundus Photographs." JAMA. 2016.
-2. Tan M, Le Q. "EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks." ICML. 2019.
-3. Cohen JP, et al. "COVID-19 Image Data Collection: Prospective Predictions Are the Future." arXiv. 2020.
-4. Selvaraju RR, et al. "Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization." ICCV. 2017.
-
----
-
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
