@@ -1,19 +1,9 @@
 # Multi-Disease Detection from Medical Images: A Comprehensive Study
 
-<div align="center">
-
-**AI-Powered Medical Image Diagnostic Assistant**
-
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![TensorFlow 2.15+](https://img.shields.io/badge/TensorFlow-2.15+-orange.svg)](https://www.tensorflow.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 *Unified medical image diagnostic system with automatic modality detection, specialized deep learning models, and clinical-grade explainability.*
 
 **[Live Demo](https://multi-disease-detectiongit-vc6m2gtxwyzqvfryrco578.streamlit.app/)**
 
-</div>
 
 ---
 
