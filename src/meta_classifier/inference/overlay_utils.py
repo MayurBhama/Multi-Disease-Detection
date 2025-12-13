@@ -124,8 +124,9 @@ def create_annotated_overlay(
     font_scale = max(0.4, base_size / 600)
     thickness = max(1, int(base_size / 300))
     
-    # Create label
-    label = f"{prediction} ({confidence:.0%})"
+    # Create label - cap at 99% to avoid unrealistic 100% (medical AI best practice)
+    capped_confidence = min(confidence, 0.99)
+    label = f"{prediction} ({capped_confidence:.0%})"
     
     # Use cleaner font
     font = cv2.FONT_HERSHEY_DUPLEX
@@ -225,8 +226,9 @@ def create_professional_report(
         lineType=cv2.LINE_AA
     )
     
-    # Prediction on right
-    pred_label = f"{prediction}: {confidence:.1%}"
+    # Prediction on right - cap at 99% for realism
+    capped_confidence = min(confidence, 0.99)
+    pred_label = f"{prediction}: {capped_confidence:.1%}"
     (pred_w, _), _ = cv2.getTextSize(pred_label, font, font_scale, thickness)
     cv2.putText(
         canvas, pred_label, (total_w - pred_w - 10, int(header_h * 0.7)),
