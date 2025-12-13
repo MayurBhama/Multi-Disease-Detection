@@ -765,13 +765,20 @@ severity = base_severity × (0.4 × confidence + 0.6 × heatmap_intensity)
                     # Get Grad-CAM image bytes if available
                     gradcam_image_bytes = None
                     gradcam_url = result.get("gradcam_url")
-                    if gradcam_url and gradcam_url.startswith("/static/"):
-                        local_path = gradcam_url.replace("/static/", "outputs/")
-                        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                        full_path = os.path.join(project_root, local_path.replace("/", os.sep))
-                        if os.path.exists(full_path):
-                            with open(full_path, 'rb') as f:
-                                gradcam_image_bytes = f.read()
+                    
+                    if gradcam_url:
+                        # Method 1: Try local file first
+                        if gradcam_url.startswith("/static/"):
+                            local_path = gradcam_url.replace("/static/", "outputs/")
+                            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                            full_path = os.path.join(project_root, local_path.replace("/", os.sep))
+                            if os.path.exists(full_path):
+                                with open(full_path, 'rb') as f:
+                                    gradcam_image_bytes = f.read()
+                        
+                        # Method 2: Fall back to API if local file not found
+                        if gradcam_image_bytes is None:
+                            gradcam_image_bytes = st.session_state.api_client.get_gradcam_image(gradcam_url)
                     
                     # Generate PDF with images
                     pdf_bytes = generate_pdf_report(
