@@ -858,17 +858,36 @@ def get_severity_score(
     Returns:
         Severity score (0-100)
     """
+    # Handle None or empty severity
+    if severity is None:
+        severity = "Unknown"
+    
+    # Normalize severity string
+    severity_str = str(severity).strip()
+    
     severity_map = {
         "None": 0,
+        "none": 0,
         "Low": 20,
+        "low": 20,
+        "Mild": 20,
+        "mild": 20,
         "Low to Moderate": 35,
         "Moderate": 50,
+        "moderate": 50,
         "Moderate to High": 65,
         "High": 80,
-        "Critical": 100
+        "high": 80,
+        "Severe": 80,
+        "severe": 80,
+        "Critical": 100,
+        "critical": 100,
+        "Proliferative": 100,
+        "Unknown": 50,
+        "unknown": 50
     }
     
-    base_severity = severity_map.get(severity, 50)
+    base_severity = severity_map.get(severity_str, 50)
     
     # If no additional metrics provided, return base severity
     if confidence is None and heatmap_intensity is None:
@@ -876,8 +895,17 @@ def get_severity_score(
     
     # Apply weighted formula when metrics are available
     # Default to 0.5 if one metric is missing
-    conf = confidence if confidence is not None else 0.5
-    heatmap = heatmap_intensity if heatmap_intensity is not None else 0.5
+    try:
+        conf = float(confidence) if confidence is not None else 0.5
+        conf = max(0.0, min(1.0, conf))  # Clamp to 0-1
+    except (ValueError, TypeError):
+        conf = 0.5
+    
+    try:
+        heatmap = float(heatmap_intensity) if heatmap_intensity is not None else 0.5
+        heatmap = max(0.0, min(1.0, heatmap))  # Clamp to 0-1
+    except (ValueError, TypeError):
+        heatmap = 0.5
     
     # Weighted combination: 40% confidence, 60% heatmap intensity
     # This weights visual evidence (heatmap) more than raw confidence
