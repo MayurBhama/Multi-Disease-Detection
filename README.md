@@ -10,7 +10,7 @@ license: mit
 
 <div align="center">
 
-# 🏥 Multi-Med Detect
+# Multi-Med Detect
 
 ### AI-Powered Medical Image Diagnostic Assistant
 
@@ -21,38 +21,41 @@ license: mit
 
 *Unified medical image diagnostic system with automatic modality detection, specialized deep learning models, and clinical-grade explainability.*
 
+**[Live Demo](https://multi-disease-detectiongit-vc6m2gtxwyzqvfryrco578.streamlit.app/)**
+
 </div>
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-- [Overview](#-overview)
-- [Diseases & Classifications](#-diseases--classifications)
-- [System Architecture](#-system-architecture)
-- [Model Architectures](#-model-architectures)
-- [Datasets](#-datasets)
-- [Preprocessing Pipelines](#-preprocessing-pipelines)
-- [Training Techniques](#-training-techniques)
-- [Model Performance](#-model-performance)
-- [Grad-CAM Explainability](#-grad-cam-explainability)
-- [Tech Stack](#-tech-stack)
-- [Installation](#-installation)
-- [Usage](#-usage)
-- [API Documentation](#-api-documentation)
-- [Project Structure](#-project-structure)
-- [License](#-license)
+- [Overview](#overview)
+- [Live Demo](#live-demo)
+- [Diseases and Classifications](#diseases-and-classifications)
+- [System Architecture](#system-architecture)
+- [Model Architectures](#model-architectures)
+- [Datasets](#datasets)
+- [Preprocessing Pipelines](#preprocessing-pipelines)
+- [Training Techniques](#training-techniques)
+- [Model Performance](#model-performance)
+- [Grad-CAM Explainability](#grad-cam-explainability)
+- [Tech Stack](#tech-stack)
+- [Installation](#installation)
+- [Usage](#usage)
+- [API Documentation](#api-documentation)
+- [Project Structure](#project-structure)
+- [License](#license)
 
 ---
 
-## 🎯 Overview
+## Overview
 
 **Multi-Med Detect** is a unified medical image diagnostic assistant that can:
 
-- 🔍 **Automatically detect** the type of medical image (Chest X-ray, Brain MRI, Retinal fundus)
-- 🧠 **Route to specialized models** trained for each specific condition
-- 📊 **Return diagnosis** with confidence scores and probability distributions
-- 🔬 **Generate Grad-CAM visualizations** for clinical explainability
+- **Automatically detect** the type of medical image (Chest X-ray, Brain MRI, Retinal fundus)
+- **Route to specialized models** trained for each specific condition
+- **Return diagnosis** with confidence scores and probability distributions
+- **Generate Grad-CAM visualizations** for clinical explainability
 
 ### Key Features
 
@@ -67,7 +70,13 @@ license: mit
 
 ---
 
-## 🩺 Diseases & Classifications
+## Live Demo
+
+Try the application live: **[Multi-Med Detect on Streamlit](https://multi-disease-detectiongit-vc6m2gtxwyzqvfryrco578.streamlit.app/)**
+
+---
+
+## Diseases and Classifications
 
 ### 1. Diabetic Retinopathy (Retinal Fundus Images)
 
@@ -103,26 +112,26 @@ Pneumonia is a lung infection causing inflammation and fluid buildup in the alve
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Input["📷 Image Input"]
+    subgraph Input["Image Input"]
         IMG[Medical Image]
     end
     
-    subgraph Meta["🧠 Meta Classifier"]
+    subgraph Meta["Meta Classifier"]
         DETECT[Auto-Detect Modality]
         ROUTE[Route to Specialized Model]
     end
     
-    subgraph Models["🔬 Specialized Models"]
+    subgraph Models["Specialized Models"]
         RETINA["Retina Ensemble<br/>(EfficientNet V2-S/B2/B0)"]
         BRAIN["Brain MRI<br/>(EfficientNetB0)"]
         PNEUMO["Pneumonia<br/>(Xception)"]
     end
     
-    subgraph Output["📊 Output"]
+    subgraph Output["Output"]
         PRED[Prediction + Confidence]
         GRADCAM[Grad-CAM Heatmap]
         PROBS[Class Probabilities]
@@ -165,128 +174,129 @@ sequenceDiagram
 
 ---
 
-## 🧠 Model Architectures
+## Model Architectures
 
 ### Retina: EfficientNet Ensemble
 
 The retinal model uses a **weighted ensemble of 3 EfficientNet variants** for robust diabetic retinopathy classification:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    RETINA ENSEMBLE                               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐│
-│  │ EfficientNetV2-S │  │  EfficientNetB2  │  │  EfficientNetB0  ││
-│  │   Weight: 0.333  │  │   Weight: 0.329  │  │   Weight: 0.338  ││
-│  │   ~21M params    │  │   ~9M params     │  │   ~5M params     ││
-│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘│
-│           │                     │                     │          │
-│           └──────────┬──────────┴──────────┬──────────┘          │
-│                      ▼                     ▼                     │
-│              ┌───────────────────────────────────┐               │
-│              │     Weighted Probability Fusion   │               │
-│              │   P_ensemble = Σ(wi × Pi) / Σwi   │               │
-│              └───────────────────────────────────┘               │
-│                              │                                   │
-│                              ▼                                   │
-│                    ┌─────────────────┐                           │
-│                    │  5-Class Output │                           │
-│                    │  (Softmax)      │                           │
-│                    └─────────────────┘                           │
-└─────────────────────────────────────────────────────────────────┘
++------------------------------------------------------------------+
+|                    RETINA ENSEMBLE                                |
++------------------------------------------------------------------+
+|                                                                   |
+|  +------------------+  +------------------+  +------------------+ |
+|  | EfficientNetV2-S |  |  EfficientNetB2  |  |  EfficientNetB0  | |
+|  |   Weight: 0.333  |  |   Weight: 0.329  |  |   Weight: 0.338  | |
+|  |   ~21M params    |  |   ~9M params     |  |   ~5M params     | |
+|  +--------+---------+  +--------+---------+  +--------+---------+ |
+|           |                     |                     |           |
+|           +----------+----------+----------+----------+           |
+|                      |                     |                      |
+|                      v                     v                      |
+|              +-------------------------------+                    |
+|              |   Weighted Probability Fusion |                    |
+|              | P_ensemble = Sum(wi * Pi) / Sum(wi)                |
+|              +-------------------------------+                    |
+|                              |                                    |
+|                              v                                    |
+|                    +-----------------+                            |
+|                    |  5-Class Output |                            |
+|                    |  (Softmax)      |                            |
+|                    +-----------------+                            |
++-------------------------------------------------------------------+
 ```
 
 **Architecture Details:**
 - **Backbone**: EfficientNet variants pre-trained on ImageNet
-- **Custom Head**: Dropout(0.3) → Dense(256, ReLU) → Dropout(0.2) → Dense(5, Softmax)
-- **Input Size**: 224×224×3 (RGB)
+- **Custom Head**: Dropout(0.3) -> Dense(256, ReLU) -> Dropout(0.2) -> Dense(5, Softmax)
+- **Input Size**: 224x224x3 (RGB)
 - **Total Ensemble Parameters**: ~35M
 
 ### Brain MRI: EfficientNetB0
 
 ```
-┌─────────────────────────────────────────────────┐
-│              BRAIN MRI MODEL                     │
-├─────────────────────────────────────────────────┤
-│  Input: 224×224×3                               │
-│           │                                      │
-│           ▼                                      │
-│  ┌─────────────────────┐                        │
-│  │  EfficientNetB0     │                        │
-│  │  (ImageNet weights) │                        │
-│  │  ~5.3M parameters   │                        │
-│  └──────────┬──────────┘                        │
-│             │                                    │
-│             ▼                                    │
-│  ┌─────────────────────┐                        │
-│  │  Conv2D(32, 3×3)    │                        │
-│  │  + ReLU             │                        │
-│  └──────────┬──────────┘                        │
-│             │                                    │
-│             ▼                                    │
-│  ┌─────────────────────┐                        │
-│  │ GlobalAveragePool2D │                        │
-│  └──────────┬──────────┘                        │
-│             │                                    │
-│             ▼                                    │
-│  ┌─────────────────────┐                        │
-│  │  Dropout(0.3)       │                        │
-│  └──────────┬──────────┘                        │
-│             │                                    │
-│             ▼                                    │
-│  ┌─────────────────────┐                        │
-│  │  Dense(4, Softmax)  │                        │
-│  └─────────────────────┘                        │
-└─────────────────────────────────────────────────┘
++-------------------------------------------------+
+|              BRAIN MRI MODEL                    |
++-------------------------------------------------+
+|  Input: 224x224x3                               |
+|           |                                     |
+|           v                                     |
+|  +---------------------+                        |
+|  |  EfficientNetB0     |                        |
+|  |  (ImageNet weights) |                        |
+|  |  ~5.3M parameters   |                        |
+|  +----------+----------+                        |
+|             |                                   |
+|             v                                   |
+|  +---------------------+                        |
+|  |  Conv2D(32, 3x3)    |                        |
+|  |  + ReLU             |                        |
+|  +----------+----------+                        |
+|             |                                   |
+|             v                                   |
+|  +---------------------+                        |
+|  | GlobalAveragePool2D |                        |
+|  +----------+----------+                        |
+|             |                                   |
+|             v                                   |
+|  +---------------------+                        |
+|  |  Dropout(0.3)       |                        |
+|  +----------+----------+                        |
+|             |                                   |
+|             v                                   |
+|  +---------------------+                        |
+|  |  Dense(4, Softmax)  |                        |
+|  +---------------------+                        |
++-------------------------------------------------+
 ```
 
 ### Pneumonia: Xception
 
 ```
-┌─────────────────────────────────────────────────┐
-│              PNEUMONIA MODEL                     │
-├─────────────────────────────────────────────────┤
-│  Input: 256×256×3                               │
-│           │                                      │
-│           ▼                                      │
-│  ┌─────────────────────┐                        │
-│  │     Xception        │                        │
-│  │  (ImageNet weights) │                        │
-│  │  + GlobalAvgPool    │                        │
-│  │  ~22.9M parameters  │                        │
-│  └──────────┬──────────┘                        │
-│             │                                    │
-│             ▼                                    │
-│  ┌─────────────────────┐                        │
-│  │  BatchNormalization │                        │
-│  └──────────┬──────────┘                        │
-│             │                                    │
-│             ▼                                    │
-│  ┌─────────────────────┐                        │
-│  │  Dropout(0.25)      │                        │
-│  └──────────┬──────────┘                        │
-│             │                                    │
-│             ▼                                    │
-│  ┌─────────────────────┐                        │
-│  │  Dense(256, ReLU)   │                        │
-│  └──────────┬──────────┘                        │
-│             │                                    │
-│             ▼                                    │
-│  ┌─────────────────────┐                        │
-│  │  Dropout(0.25)      │                        │
-│  └──────────┬──────────┘                        │
-│             │                                    │
-│             ▼                                    │
-│  ┌─────────────────────┐                        │
-│  │ Dense(1, Sigmoid)   │  Binary classification │
-│  └─────────────────────┘                        │
-└─────────────────────────────────────────────────┘
++-------------------------------------------------+
+|              PNEUMONIA MODEL                    |
++-------------------------------------------------+
+|  Input: 256x256x3                               |
+|           |                                     |
+|           v                                     |
+|  +---------------------+                        |
+|  |     Xception        |                        |
+|  |  (ImageNet weights) |                        |
+|  |  + GlobalAvgPool    |                        |
+|  |  ~22.9M parameters  |                        |
+|  +----------+----------+                        |
+|             |                                   |
+|             v                                   |
+|  +---------------------+                        |
+|  |  BatchNormalization |                        |
+|  +----------+----------+                        |
+|             |                                   |
+|             v                                   |
+|  +---------------------+                        |
+|  |  Dropout(0.25)      |                        |
+|  +----------+----------+                        |
+|             |                                   |
+|             v                                   |
+|  +---------------------+                        |
+|  |  Dense(256, ReLU)   |                        |
+|  +----------+----------+                        |
+|             |                                   |
+|             v                                   |
+|  +---------------------+                        |
+|  |  Dropout(0.25)      |                        |
+|  +----------+----------+                        |
+|             |                                   |
+|             v                                   |
+|  +---------------------+                        |
+|  | Dense(1, Sigmoid)   |  Binary classification|
+|  +---------------------+                        |
++-------------------------------------------------+
 ```
 
 ---
 
-## 📊 Datasets
+## Datasets
 
 ### 1. APTOS 2019 Diabetic Retinopathy Dataset
 
@@ -329,7 +339,7 @@ Class 4 (Proliferative): 295 (8.1%)
 
 ---
 
-## 🔧 Preprocessing Pipelines
+## Preprocessing Pipelines
 
 ### Retina Preprocessing (Advanced)
 
@@ -342,17 +352,17 @@ flowchart LR
     C --> D[Resize with Aspect Ratio]
     D --> E[CLAHE Enhancement]
     E --> F[Normalize to 0-1]
-    F --> G[Output: 224×224×3]
+    F --> G[Output: 224x224x3]
 ```
 
 **Step-by-Step:**
 
 1. **Black Border Cropping**
-   - Threshold-based mask creation
+   - Threshold-based mask creation (threshold=10)
    - Morphological closing to fill holes
    - Contour-based bounding box extraction
 
-2. **Circle Detection & Cropping**
+2. **Circle Detection and Cropping**
    - Gaussian blur for noise reduction
    - Binary thresholding
    - Find largest contour (fundus region)
@@ -361,10 +371,10 @@ flowchart LR
 3. **Resize with Aspect Ratio Preservation**
    - Scale to fit target size
    - Pad with black to maintain square aspect
-   - Target: 512×512 → 224×224 (resized for model)
+   - Target: 512x512 -> 224x224 (resized for model)
 
 4. **CLAHE Enhancement (LAB Color Space)**
-   - Convert BGR → LAB
+   - Convert BGR to LAB
    - Apply CLAHE to L-channel (clip_limit=2.0, tile_grid=(8,8))
    - Convert back to RGB
 
@@ -375,9 +385,9 @@ flowchart LR
 ### Brain MRI Preprocessing
 
 ```python
-# Simple preprocessing for Brain MRI
+# Preprocessing for Brain MRI
 1. Load image (grayscale or RGB)
-2. Resize to 224×224
+2. Resize to 224x224
 3. Apply EfficientNet preprocessing (scale to [-1, 1])
 4. Expand batch dimension
 ```
@@ -387,14 +397,14 @@ flowchart LR
 ```python
 # Preprocessing for Chest X-rays
 1. Load image
-2. Resize to 256×256
+2. Resize to 256x256
 3. Apply Xception preprocessing (scale to [-1, 1])
 4. Expand batch dimension
 ```
 
 ---
 
-## 🎓 Training Techniques
+## Training Techniques
 
 ### Two-Phase Transfer Learning
 
@@ -424,22 +434,22 @@ flowchart LR
 | **Mixup Augmentation** | Retina | Regularization, better generalization |
 | **CutMix Augmentation** | Retina | Prevents overfitting on local features |
 | **Class Weighting** | All models | Handles class imbalance |
-| **Minority Oversampling** | Retina | 2× boost for rare classes |
+| **Minority Oversampling** | Retina | 2x boost for rare classes |
 | **Cosine LR Schedule** | Retina | Smooth learning rate decay |
-| **Warmup Epochs** | Retina | Stable initial training |
-| **AdamW Optimizer** | Retina | Weight decay regularization |
-| **Label Smoothing** | Retina | Prevents overconfident predictions |
+| **Warmup Epochs** | Retina | Stable initial training (3 epochs) |
+| **AdamW Optimizer** | Retina | Weight decay regularization (0.0001) |
+| **Label Smoothing** | Retina | Prevents overconfident predictions (0.1) |
 
 ### Data Augmentation
 
-```python
+```yaml
 # Retina Augmentation (Strong)
 augmentation:
   rotation: 0.02
   width_shift: 0.05
   height_shift: 0.05
   zoom: 0.05
-  horizontal_flip: True
+  horizontal_flip: true
   mixup_probability: 0.3
   cutmix_probability: 0.3
 
@@ -449,14 +459,14 @@ augmentation:
   width_shift: 0.05
   height_shift: 0.05
   zoom: 0.05
-  horizontal_flip: False  # Preserve anatomical orientation
+  horizontal_flip: false  # Preserve anatomical orientation
 ```
 
 ### Loss Functions
 
 | Model | Loss Function | Details |
 |-------|--------------|---------|
-| **Retina** | Combined Ordinal + Focal | Ordinal for severity ordering, Focal for class imbalance |
+| **Retina** | Combined Ordinal + Focal | Ordinal for severity ordering, Focal for class imbalance (gamma=2.0) |
 | **Brain MRI** | Categorical Cross-Entropy | Standard multi-class loss |
 | **Pneumonia** | Binary Cross-Entropy | Binary classification |
 
@@ -472,7 +482,8 @@ callbacks = [
     ReduceLROnPlateau(
         monitor='val_qwk',
         factor=0.5,
-        patience=4
+        patience=4,
+        min_lr=1e-7
     ),
     ModelCheckpoint(
         save_best_only=True,
@@ -483,7 +494,7 @@ callbacks = [
 
 ---
 
-## 📈 Model Performance
+## Model Performance
 
 ### Retina Ensemble Performance
 
@@ -541,7 +552,7 @@ The training process generates comprehensive visualizations:
 
 ---
 
-## 🔬 Grad-CAM Explainability
+## Grad-CAM Explainability
 
 ### What is Grad-CAM?
 
@@ -567,13 +578,13 @@ Each disease model has a dedicated Grad-CAM generator:
 ### Example Output
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Original Image  │       Grad-CAM Overlay       │
-├─────────────────────────────────────────────────┤
-│  [Fundus Photo]  │  [Heatmap highlighting       │
-│                  │   detected lesions in        │
-│                  │   red/yellow regions]        │
-└─────────────────────────────────────────────────┘
++-------------------------------------------------+
+|  Original Image  |       Grad-CAM Overlay       |
++-------------------------------------------------+
+|  [Fundus Photo]  |  [Heatmap highlighting       |
+|                  |   detected lesions in        |
+|                  |   red/yellow regions]        |
++-------------------------------------------------+
 ```
 
 ### Clinical Interpretation
@@ -585,7 +596,7 @@ The Grad-CAM visualizations include:
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Core Framework
 
@@ -622,7 +633,7 @@ The Grad-CAM visualizations include:
 
 ---
 
-## 📥 Installation
+## Installation
 
 ### Prerequisites
 
@@ -668,7 +679,7 @@ dvc pull
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ### Running the API Server
 
@@ -713,7 +724,7 @@ result = classifier.explain("path/to/image.png", disease_type="retina")
 
 ---
 
-## 📡 API Documentation
+## API Documentation
 
 ### Endpoints
 
@@ -759,7 +770,7 @@ curl -X POST "http://localhost:8001/predict" \
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Multi-Disease-Detection/
@@ -810,13 +821,13 @@ Multi-Disease-Detection/
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **APTOS 2019** for the Diabetic Retinopathy dataset
 - **Kaggle** for hosting the datasets
@@ -828,7 +839,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <div align="center">
 
 **!! OM NAMAH SHIVAY !!**
-
-Made with ❤️ for Medical AI
 
 </div>
