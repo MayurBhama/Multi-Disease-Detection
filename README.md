@@ -1546,11 +1546,3 @@ curl -X POST "http://localhost:8001/predict" \
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
-
-## Acknowledgments
-
-- **APTOS 2019** for the Diabetic Retinopathy dataset
-- **Kaggle** for hosting the datasets
-- **TensorFlow/Keras** team for the deep learning framework
-- **EfficientNet** authors for the model architectures
-
