@@ -1562,8 +1562,5 @@ Built by **Mayur Bhama** - Learning and building in healthcare AI.
 
 *This document is designed to be educational. Every decision is explained with rationale. Use it as a learning resource for medical ML projects.*
 
----
-
-**!! OM NAMAH SHIVAY !!**
 
 </div>
