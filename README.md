@@ -1554,13 +1554,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **TensorFlow/Keras** team for the deep learning framework
 - **EfficientNet** authors for the model architectures
 
----
-
-<div align="center">
-
-Built by **Mayur Bhama** - Learning and building in healthcare AI.
-
-*This document is designed to be educational. Every decision is explained with rationale. Use it as a learning resource for medical ML projects.*
-
-
-</div>
