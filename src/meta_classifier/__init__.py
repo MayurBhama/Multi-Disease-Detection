@@ -7,7 +7,6 @@ Production-ready inference engine for multi-disease detection.
 Supports:
 - Brain MRI tumor classification (EfficientNetB0)
 - Pneumonia classification (Xception)
-- Retina diabetic retinopathy (EfficientNet Ensemble)
 
 Usage:
     from src.inference import MetaClassifier
@@ -18,7 +17,6 @@ Usage:
 
 from .predictor import MetaClassifier
 from .loader import ModelLoader
-from .retina_ensemble import RetinaEnsemble
 
-__all__ = ["MetaClassifier", "ModelLoader", "RetinaEnsemble"]
+__all__ = ["MetaClassifier", "ModelLoader"]
 __version__ = "1.0.0"

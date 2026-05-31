@@ -53,7 +53,7 @@ class APIClient:
         Args:
             image_bytes: Image file content
             filename: Original filename
-            disease_type: One of brain_mri, pneumonia, retina
+            disease_type: One of brain_mri, pneumonia
             generate_gradcam: Whether to generate Grad-CAM
             
         Returns:
@@ -306,44 +306,6 @@ def get_disease_info(disease_type: str) -> Dict[str, Any]:
                     "prevalence": "Affects millions globally each year"
                 }
             }
-        },
-        "retina": {
-            "name": "Diabetic Retinopathy Screening",
-            "description": "Grades diabetic retinopathy severity from fundus images",
-            "classes": ["No DR", "Mild", "Moderate", "Severe", "Proliferative"],
-            "color": "#10b981",
-            "medical_details": {
-                "No_DR": {
-                    "description": "No signs of diabetic retinopathy detected. Retina appears healthy.",
-                    "severity": "None",
-                    "recommendation": "Continue annual diabetic eye exams. Maintain good blood sugar control.",
-                    "prevalence": "N/A"
-                },
-                "Mild": {
-                    "description": "Mild non-proliferative DR with microaneurysms (small areas of balloon-like swelling in the retina's blood vessels).",
-                    "severity": "Low",
-                    "recommendation": "Schedule follow-up in 6-12 months. Focus on glucose and blood pressure control.",
-                    "prevalence": "Early stage affecting many diabetic patients"
-                },
-                "Moderate": {
-                    "description": "Moderate non-proliferative DR with blocked blood vessels that nourish the retina.",
-                    "severity": "Moderate",
-                    "recommendation": "Ophthalmologist consultation within 3-6 months. Consider more aggressive diabetes management.",
-                    "prevalence": "Progression indicator requiring attention"
-                },
-                "Severe": {
-                    "description": "Severe non-proliferative DR with many blocked blood vessels, depriving areas of the retina of blood supply.",
-                    "severity": "High",
-                    "recommendation": "Urgent ophthalmologist referral. High risk of progressing to proliferative DR. May require laser treatment.",
-                    "prevalence": "Significant vision loss risk"
-                },
-                "Proliferative_DR": {
-                    "description": "Proliferative DR with new, abnormal blood vessel growth (neovascularization) that can bleed and cause vision loss.",
-                    "severity": "Critical",
-                    "recommendation": "Immediate ophthalmologist consultation. Treatment options include laser surgery, vitrectomy, or anti-VEGF injections.",
-                    "prevalence": "Advanced stage with high risk of blindness"
-                }
-            }
         }
     }
     return info.get(disease_type, {})
@@ -363,194 +325,6 @@ def get_gradcam_interpretation() -> Dict[str, str]:
         "limitation": "⚠️ Important: Grad-CAM is NOT localization — it explains what influenced the prediction, not where the tumor/abnormality exactly is. This is a key distinction in medical AI and should not be used for surgical planning or precise boundary detection.",
         "disclaimer": "Grad-CAM is an explainability tool and should be interpreted alongside clinical findings, not as a standalone diagnostic."
     }
-
-
-def detect_image_type(image_bytes: bytes) -> Dict[str, Any]:
-    """
-    Auto-detect image type (Brain MRI, Chest X-ray, or Retina).
-    
-    Improved heuristics:
-    - Color analysis for retina (warm colors, orange/red tones)
-    - Edge density for MRI (brain structures have more edges)
-    - Brightness distribution for X-ray (bimodal: dark lungs, bright ribs)
-    """
-    try:
-        from PIL import Image
-        import numpy as np
-        from io import BytesIO
-        
-        img = Image.open(BytesIO(image_bytes))
-        img_array = np.array(img)
-        
-        width, height = img.size
-        aspect_ratio = width / height
-        
-        # Grayscale check
-        if len(img_array.shape) == 2:
-            is_grayscale = True
-            gray_array = img_array.astype(float)
-        elif img_array.shape[2] == 1:
-            is_grayscale = True
-            gray_array = img_array[:,:,0].astype(float)
-        else:
-            # Check if RGB channels are similar
-            r, g, b = img_array[:,:,0], img_array[:,:,1], img_array[:,:,2]
-            is_grayscale = np.mean(np.abs(r.astype(float) - g.astype(float))) < 15 and \
-                          np.mean(np.abs(g.astype(float) - b.astype(float))) < 15
-            gray_array = np.mean(img_array[:,:,:3], axis=2).astype(float)
-        
-        h, w = gray_array.shape
-        
-        # =============================================
-        # RETINA DETECTION (warm colors + dark borders)
-        # =============================================
-        has_warm_colors = False
-        red_dominance = 0
-        orange_score = 0
-        
-        if not is_grayscale and len(img_array.shape) == 3 and img_array.shape[2] >= 3:
-            r, g, b = img_array[:,:,0].astype(float), img_array[:,:,1].astype(float), img_array[:,:,2].astype(float)
-            
-            # Red/orange dominance (characteristic of retina)
-            red_dominance = np.mean(r) - np.mean(b)
-            orange_region = (r > 100) & (g > 50) & (b < 100)
-            orange_score = np.sum(orange_region) / (h * w) * 100
-            has_warm_colors = (red_dominance > 15 and np.mean(r) > 80) or orange_score > 20
-        
-        # Dark border detection (fundus images have black circular borders)
-        border_size = min(h, w) // 8
-        top_border = np.mean(gray_array[:border_size, :])
-        bottom_border = np.mean(gray_array[-border_size:, :])
-        left_border = np.mean(gray_array[:, :border_size])
-        right_border = np.mean(gray_array[:, -border_size:])
-        corner_brightness = (top_border + bottom_border + left_border + right_border) / 4
-        
-        center_region = gray_array[h//4:3*h//4, w//4:3*w//4]
-        center_brightness = np.mean(center_region)
-        
-        has_dark_borders = corner_brightness < 30 and center_brightness > 60
-        
-        # =============================================
-        # MRI vs X-RAY DIFFERENTIATION
-        # =============================================
-        
-        # Edge density (MRI has more internal structure/edges)
-        # Simple Sobel-like edge detection
-        gx = np.abs(gray_array[:, 1:] - gray_array[:, :-1])
-        gy = np.abs(gray_array[1:, :] - gray_array[:-1, :])
-        edge_density = (np.mean(gx) + np.mean(gy)) / 2
-        
-        # Histogram analysis
-        hist, bins = np.histogram(gray_array.flatten(), bins=50, range=(0, 255))
-        hist_norm = hist / hist.sum()
-        
-        # X-ray has bimodal distribution (dark lungs + bright bones)
-        low_peak = np.sum(hist_norm[:15])   # Dark regions
-        mid_region = np.sum(hist_norm[15:35])  # Mid-tones
-        high_peak = np.sum(hist_norm[35:])  # Bright regions
-        
-        is_bimodal = low_peak > 0.15 and high_peak > 0.1 and mid_region < 0.5
-        
-        # MRI typically has smoother histogram, more mid-tones
-        has_mid_tones = mid_region > 0.3
-        
-        # X-ray background is typically uniform dark or light
-        # MRI often has text/annotations or variable background
-        
-        # Check for rectangular shape (X-rays are often portrait/landscape)
-        is_portrait = aspect_ratio < 0.9  # Taller than wide
-        is_square = 0.9 <= aspect_ratio <= 1.1
-        
-        # =============================================
-        # SCORING
-        # =============================================
-        scores = {"retina": 0, "pneumonia": 0, "brain_mri": 0}
-        
-        # RETINA scoring
-        if has_warm_colors:
-            scores["retina"] += 50
-        if has_dark_borders:
-            scores["retina"] += 40
-        if orange_score > 30:
-            scores["retina"] += 20
-        if red_dominance > 25:
-            scores["retina"] += 15
-        
-        # If clearly retina (warm colors + dark borders), don't consider others much
-        if scores["retina"] >= 70:
-            scores["pneumonia"] = 0
-            scores["brain_mri"] = 0
-        else:
-            # CHEST X-RAY scoring (only for grayscale images)
-            if is_grayscale:
-                scores["pneumonia"] += 15
-                
-                if is_bimodal:
-                    scores["pneumonia"] += 30  # Bimodal = lungs + ribs
-                
-                if is_portrait or aspect_ratio > 1.1:  # X-rays often portrait or wide
-                    scores["pneumonia"] += 15
-                
-                if edge_density < 15:  # X-rays have fewer internal edges
-                    scores["pneumonia"] += 20
-                
-                if center_brightness > 100:  # Chest center often brighter
-                    scores["pneumonia"] += 10
-            
-            # BRAIN MRI scoring (only for grayscale images)
-            if is_grayscale:
-                scores["brain_mri"] += 15
-                
-                if is_square:  # MRI slices are typically square
-                    scores["brain_mri"] += 25
-                
-                if edge_density > 12:  # Brain has more internal structure
-                    scores["brain_mri"] += 25
-                
-                if has_mid_tones:  # MRI has more gradual intensity
-                    scores["brain_mri"] += 15
-                
-                if not is_bimodal:  # MRI is not typically bimodal
-                    scores["brain_mri"] += 10
-        
-        # Normalize scores
-        total = sum(scores.values()) or 1
-        confidences = {k: round(v / total, 2) for k, v in scores.items()}
-        
-        detected_type = max(scores, key=scores.get)
-        confidence = confidences[detected_type]
-        
-        # OVERRIDE: For grayscale square images with high edge density, force brain_mri
-        # This helps distinguish brain MRI from chest X-ray more reliably
-        if is_grayscale and is_square and edge_density > 15 and not has_warm_colors:
-            # High edge density + square = brain MRI (brain has more internal structure)
-            detected_type = "brain_mri"
-            confidence = max(confidence, 0.75)
-            confidences = {"brain_mri": 0.75, "pneumonia": 0.20, "retina": 0.05}
-        
-        return {
-            "detected_type": detected_type,
-            "confidence": confidence,
-            "all_scores": confidences,
-            "analysis": {
-                "is_grayscale": is_grayscale,
-                "aspect_ratio": round(aspect_ratio, 2),
-                "has_warm_colors": has_warm_colors,
-                "has_dark_borders": has_dark_borders,
-                "edge_density": round(edge_density, 1),
-                "is_bimodal": is_bimodal
-            }
-        }
-    except Exception as e:
-        return {
-            "detected_type": "brain_mri",
-            "confidence": 0.33,
-            "all_scores": {"brain_mri": 0.33, "pneumonia": 0.33, "retina": 0.33},
-            "error": str(e)
-        }
-
-
-
 
 
 def get_preprocessed_preview(image_bytes: bytes, disease_type: str = "brain_mri") -> bytes:
@@ -597,156 +371,6 @@ def get_preprocessed_preview(image_bytes: bytes, disease_type: str = "brain_mri"
         
     except Exception as e:
         return image_bytes  # Return original on error
-
-
-def check_retina_quality(image_bytes: bytes) -> Dict[str, Any]:
-    """
-    Enhanced quality check specifically for retina fundus images.
-    
-    Checks:
-    - Brightness level
-    - Contrast level  
-    - Glare/saturation
-    - Field of view coverage
-    - Overall quality score
-    """
-    try:
-        from PIL import Image
-        import numpy as np
-        from io import BytesIO
-        
-        img = Image.open(BytesIO(image_bytes))
-        img_array = np.array(img)
-        
-        # Convert to grayscale for analysis
-        if len(img_array.shape) == 3:
-            gray = np.mean(img_array[:,:,:3], axis=2)
-            rgb = img_array[:,:,:3]
-        else:
-            gray = img_array
-            rgb = None
-        
-        h, w = gray.shape
-        
-        # 1. Brightness Analysis
-        mean_brightness = np.mean(gray)
-        brightness_status = "Good"
-        if mean_brightness < 40:
-            brightness_status = "Too Dark"
-        elif mean_brightness < 70:
-            brightness_status = "Dark"
-        elif mean_brightness > 200:
-            brightness_status = "Too Bright"
-        elif mean_brightness > 170:
-            brightness_status = "Bright"
-        
-        # 2. Contrast Analysis (standard deviation)
-        contrast = np.std(gray)
-        contrast_status = "Good"
-        if contrast < 30:
-            contrast_status = "Low Contrast"
-        elif contrast < 50:
-            contrast_status = "Fair"
-        elif contrast > 80:
-            contrast_status = "High Contrast"
-        
-        # 3. Glare Detection (saturated pixels)
-        saturated_pixels = np.sum(gray > 250) / gray.size * 100
-        glare_status = "None"
-        if saturated_pixels > 5:
-            glare_status = "Severe Glare"
-        elif saturated_pixels > 2:
-            glare_status = "Moderate Glare"
-        elif saturated_pixels > 0.5:
-            glare_status = "Mild Glare"
-        
-        # 4. Field of View (circular coverage detection)
-        # Create circular mask
-        center = (w // 2, h // 2)
-        radius = min(w, h) // 2
-        y, x = np.ogrid[:h, :w]
-        circular_mask = (x - center[0])**2 + (y - center[1])**2 <= radius**2
-        
-        # Check coverage (non-black pixels in circular region)
-        threshold = 20
-        valid_pixels = gray[circular_mask] > threshold
-        fov_coverage = np.sum(valid_pixels) / np.sum(circular_mask) * 100
-        
-        fov_status = "Good"
-        if fov_coverage < 60:
-            fov_status = "Poor FOV"
-        elif fov_coverage < 80:
-            fov_status = "Partial FOV"
-        elif fov_coverage > 95:
-            fov_status = "Excellent FOV"
-        
-        # 5. Overall Quality Score (0-100)
-        quality_score = 0
-        
-        # Brightness contribution (25 points)
-        if brightness_status == "Good":
-            quality_score += 25
-        elif brightness_status in ["Dark", "Bright"]:
-            quality_score += 15
-        else:
-            quality_score += 5
-        
-        # Contrast contribution (25 points)
-        if contrast_status == "Good":
-            quality_score += 25
-        elif contrast_status == "Fair":
-            quality_score += 15
-        elif contrast_status == "High Contrast":
-            quality_score += 20
-        else:
-            quality_score += 5
-        
-        # Glare contribution (25 points)
-        if glare_status == "None":
-            quality_score += 25
-        elif glare_status == "Mild Glare":
-            quality_score += 15
-        elif glare_status == "Moderate Glare":
-            quality_score += 8
-        else:
-            quality_score += 0
-        
-        # FOV contribution (25 points)
-        if fov_status in ["Good", "Excellent FOV"]:
-            quality_score += 25
-        elif fov_status == "Partial FOV":
-            quality_score += 15
-        else:
-            quality_score += 5
-        
-        overall_status = "Excellent" if quality_score >= 85 else "Good" if quality_score >= 70 else "Fair" if quality_score >= 50 else "Poor"
-        
-        return {
-            "quality_score": quality_score,
-            "overall_status": overall_status,
-            "brightness": {
-                "value": round(mean_brightness, 1),
-                "status": brightness_status
-            },
-            "contrast": {
-                "value": round(contrast, 1),
-                "status": contrast_status
-            },
-            "glare": {
-                "value": round(saturated_pixels, 2),
-                "status": glare_status
-            },
-            "field_of_view": {
-                "value": round(fov_coverage, 1),
-                "status": fov_status
-            }
-        }
-    except Exception as e:
-        return {
-            "quality_score": 0,
-            "overall_status": "Error",
-            "error": str(e)
-        }
 
 
 
@@ -882,7 +506,6 @@ def get_severity_score(
         "severe": 80,
         "Critical": 100,
         "critical": 100,
-        "Proliferative": 100,
         "Unknown": 50,
         "unknown": 50
     }
@@ -954,9 +577,8 @@ def generate_pdf_report(
     
     # Model architecture info for transparency
     model_architectures = {
-        "brain_mri": "EfficientNetB3 (Transfer Learning from ImageNet)",
-        "pneumonia": "Xception-based CNN (Depthwise Separable Convolutions)",
-        "retina": "EfficientNet Ensemble (V2-S + B2 + B0, Weighted Average)"
+        "brain_mri": "EfficientNetB0 (Transfer Learning from ImageNet)",
+        "pneumonia": "Xception-based CNN (Depthwise Separable Convolutions)"
     }
     
     class PDF(FPDF):
@@ -987,7 +609,7 @@ def generate_pdf_report(
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=25)
     
-    disease_names = {"brain_mri": "Brain MRI Analysis", "pneumonia": "Chest X-Ray Analysis", "retina": "Retinal Scan Analysis"}
+    disease_names = {"brain_mri": "Brain MRI Analysis", "pneumonia": "Chest X-Ray Analysis"}
     
     # ===========================================
     # SECTION 1: Analysis Summary
@@ -1108,7 +730,7 @@ def generate_pdf_report(
     
     # Check if prediction is normal/healthy - Grad-CAM not meaningful for these
     predicted_class = result.get('predicted_class', '').lower().replace('_', ' ')
-    normal_classes = ["notumor", "no tumor", "normal", "no_dr", "no dr", "healthy"]
+    normal_classes = ["notumor", "no tumor", "normal", "healthy"]
     is_normal_case = any(nc in predicted_class for nc in normal_classes)
     
     temp_files = []

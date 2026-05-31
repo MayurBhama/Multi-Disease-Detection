@@ -275,7 +275,7 @@ def render_header():
     return """
     <div class="main-header">
         <h1>Multi-Disease Detection System</h1>
-        <p>AI-powered medical image analysis for Brain MRI, Chest X-Ray, and Retinal Scans</p>
+        <p>AI-powered medical image analysis for Brain MRI and Chest X-Ray</p>
     </div>
     """
 

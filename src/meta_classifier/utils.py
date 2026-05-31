@@ -78,36 +78,6 @@ def resize_image(img: np.ndarray, target_size: Tuple[int, int]) -> np.ndarray:
         raise PreprocessingError(f"Failed to resize image: {e}")
 
 
-def crop_black_borders(img: np.ndarray, threshold: int = 10) -> np.ndarray:
-    """
-    Crop black borders from retina images.
-    
-    Args:
-        img: Input RGB image
-        threshold: Pixel value threshold for black detection
-        
-    Returns:
-        Cropped image
-    """
-    try:
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        _, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        if contours:
-            largest = max(contours, key=cv2.contourArea)
-            x, y, w, h = cv2.boundingRect(largest)
-            margin = 5
-            x, y = max(0, x - margin), max(0, y - margin)
-            w = min(img.shape[1] - x, w + 2 * margin)
-            h = min(img.shape[0] - y, h + 2 * margin)
-            img = img[y:y+h, x:x+w]
-        
-        return img
-        
-    except Exception as e:
-        logger.warning(f"Failed to crop borders, returning original: {e}")
-        return img  # Return original if cropping fails
 
 
 def apply_efficientnet_preprocessing(img: np.ndarray, version: str = "v1") -> np.ndarray:
@@ -222,45 +192,6 @@ def preprocess_pneumonia(
         raise PreprocessingError(f"Pneumonia preprocessing failed: {e}")
 
 
-def preprocess_retina(
-    image_path: str,
-    target_size: Tuple[int, int] = (224, 224),
-    version: str = "v1"
-) -> np.ndarray:
-    """
-    Preprocess retina fundus image for EfficientNet.
-    
-    Args:
-        image_path: Path to image file
-        target_size: Target image dimensions
-        version: "v1" for B-series, "v2" for V2-S
-        
-    Returns:
-        Preprocessed image batch (1, H, W, 3)
-        
-    Raises:
-        PreprocessingError: If preprocessing fails
-    """
-    try:
-        img = load_image(image_path)
-        
-        # Crop black borders (common in fundus images)
-        img = crop_black_borders(img)
-        
-        # Resize
-        img = resize_image(img, target_size)
-        
-        # Apply preprocessing
-        img = apply_efficientnet_preprocessing(img, version=version)
-        
-        # Add batch dimension
-        return np.expand_dims(img, axis=0)
-        
-    except PreprocessingError:
-        raise
-    except Exception as e:
-        logger.error(f"Retina preprocessing failed: {e}")
-        raise PreprocessingError(f"Retina preprocessing failed: {e}")
 
 
 # =====================================================

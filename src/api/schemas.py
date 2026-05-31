@@ -25,7 +25,6 @@ class PredictionResponse(BaseModel):
     gradcam_url: Optional[str] = Field(None, description="Grad-CAM overlay image URL")
     gradcam_comparison_url: Optional[str] = Field(None, description="Original + Grad-CAM comparison URL")
     original_image_url: Optional[str] = Field(None, description="Original image URL for comparison")
-    individual_predictions: Optional[Dict[str, Dict]] = Field(None, description="Individual model predictions (ensemble)")
     
     class Config:
         json_schema_extra = {

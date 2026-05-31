@@ -21,9 +21,7 @@ from api_client import (
     check_image_quality,
     get_severity_score,
     generate_pdf_report,
-    detect_image_type,
-    get_preprocessed_preview,
-    check_retina_quality
+    get_preprocessed_preview
 )
 from styles import (
     get_custom_css,
@@ -37,7 +35,7 @@ from styles import (
 # =====================================================
 st.set_page_config(
     page_title="Multi-Disease Detection",
-    page_icon="🏥",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -108,10 +106,6 @@ if "uploaded_image_bytes" not in st.session_state:
 if "batch_results" not in st.session_state:
     st.session_state.batch_results = None
 
-if "detected_type" not in st.session_state:
-    st.session_state.detected_type = None
-
-
 # =====================================================
 # SIDEBAR
 # =====================================================
@@ -131,62 +125,42 @@ with st.sidebar:
 
     st.divider()
 
-    # Auto-detect toggle
     st.markdown("### Analysis Type")
-    auto_detect = st.toggle("Auto-Detect Image Type", value=False, help="⚠️ Auto-detection may be unreliable. Manual selection recommended.")
-
-    if not auto_detect:
-        disease_type = st.radio(
-            "Select analysis type:",
-            options=["brain_mri", "pneumonia", "retina"],
-            format_func=lambda x: {"brain_mri": "🧠 Brain MRI", "pneumonia": "🫁 Chest X-Ray", "retina": "👁️ Retinal Scan"}[x],
-            label_visibility="collapsed"
-        )
+    
+    disease_type = st.radio(
+        "Select analysis type:",
+        options=["brain_mri", "pneumonia"],
+        format_func=lambda x: {"brain_mri": "Brain MRI", "pneumonia": "Chest X-Ray"}[x],
+        label_visibility="collapsed"
+    )
         
-        # Show description for selected disease type
-        disease_descriptions = {
-            "brain_mri": {
-                "title": "Brain Tumor Classification",
-                "detects": "Glioma, Meningioma, Pituitary Tumor, or No Tumor",
-                "expects": "Grayscale brain MRI scan (axial view preferred)",
-                "color": "#6366f1"
-            },
-            "pneumonia": {
-                "title": "Pneumonia Detection", 
-                "detects": "Pneumonia or Normal lungs",
-                "expects": "Chest X-ray image (frontal PA view)",
-                "color": "#06b6d4"
-            },
-            "retina": {
-                "title": "Diabetic Retinopathy Screening",
-                "detects": "No DR, Mild DR, Moderate DR, Severe DR, or Proliferative DR",
-                "expects": "Color fundus photograph of the retina",
-                "color": "#10b981"
-            }
+    # Show description for selected disease type
+    disease_descriptions = {
+        "brain_mri": {
+            "title": "Brain Tumor Classification",
+            "detects": "Glioma, Meningioma, Pituitary Tumor, or No Tumor",
+            "expects": "Grayscale brain MRI scan (axial view preferred)",
+            "color": "#6366f1"
+        },
+        "pneumonia": {
+            "title": "Pneumonia Detection", 
+            "detects": "Pneumonia or Normal lungs",
+            "expects": "Chest X-ray image (frontal PA view)",
+            "color": "#06b6d4"
         }
-        
-        desc = disease_descriptions[disease_type]
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, {desc['color']}22, {desc['color']}11); 
-                    border-left: 3px solid {desc['color']}; padding: 12px 16px; 
-                    border-radius: 8px; margin: 10px 0;">
-            <strong style="color: {desc['color']};">{desc['title']}</strong><br>
-            <small><b>Detects:</b> {desc['detects']}</small><br>
-            <small><b>Input:</b> {desc['expects']}</small>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        disease_type = None  # Will be set by auto-detection
-        # Clean, concise warning about auto-detection
-        st.markdown('''
-        <div style="background: rgba(245, 158, 11, 0.12); border-left: 3px solid #f59e0b; 
-                    padding: 10px 12px; border-radius: 4px; margin: 8px 0; font-size: 0.9rem;">
-            <em>Auto-detection uses simple visual heuristics and is not a trained classifier.</em><br>
-            For accurate results, disable auto-detect and manually select the correct analysis type.
-        </div>
-        ''', unsafe_allow_html=True)
-        if st.session_state.detected_type:
-            st.info(f"Detected: {st.session_state.detected_type.replace('_', ' ').title()}")
+    }
+    
+    desc = disease_descriptions[disease_type]
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, {desc['color']}22, {desc['color']}11); 
+                border-left: 3px solid {desc['color']}; padding: 12px 16px; 
+                border-radius: 8px; margin: 10px 0;">
+        <strong style="color: {desc['color']};">{desc['title']}</strong><br>
+        <small><b>Detects:</b> {desc['detects']}</small><br>
+        <small><b>Input:</b> {desc['expects']}</small>
+    </div>
+    """, unsafe_allow_html=True)
+
 
     st.divider()
 
@@ -209,31 +183,20 @@ with st.sidebar:
     st.divider()
     
     # Model Evaluation Metrics (HIGH PRIORITY for interviews)
-    with st.expander("📊 Model Performance"):
+    with st.expander("Model Performance"):
         st.markdown("""
 **Evaluation Metrics Summary**
 
-| Model | Accuracy | AUC | F1 | QWK |
-|-------|----------|-----|-----|-----|
-| Brain MRI (EfficientNetB3)* | ~93% | ~0.96 | ~0.91 | — |
-| Chest X-Ray (Xception CNN)* | ~90% | ~0.94 | ~0.90 | — |
-| **Retinal DR (Ensemble)** | 78% | 0.92 | 0.63 | **0.87** |
+| Model | Accuracy | AUC | F1 |
+|-------|----------|-----|-----|
+| Brain MRI (EfficientNetB0) | ~93% | ~0.96 | ~0.91 |
+| Chest X-Ray (Xception CNN) | ~90% | ~0.94 | ~0.90 |
 
----
-**Retinal DR Ensemble Breakdown** *(verified from training logs)*
-
-| Model | Best QWK | Final AUC | Final F1 | Weight |
-|-------|----------|-----------|----------|--------|
-| EfficientNet-V2S | 0.862 | 0.924 | 0.606 | 0.4 |
-| EfficientNet-B2 | 0.873 | 0.918 | 0.629 | 0.35 |
-| EfficientNet-B0 | 0.843 | 0.914 | 0.570 | 0.25 |
-
-*Brain MRI & Chest X-Ray: approximate (benchmark performance)*  
-*QWK = Quadratic Weighted Kappa (critical for ordinal DR grading)*
+*Approximate benchmark performance from training logs.*
         """)
     
     # Dataset Summary (Shows data understanding)
-    with st.expander("📁 Dataset Summary"):
+    with st.expander("Dataset Summary"):
         st.markdown("""
 **Training Data Sources**
 
@@ -245,48 +208,36 @@ with st.sidebar:
   Classes: Normal, Pneumonia  
   *Source: Kaggle Chest X-Ray Pneumonia Dataset*
 
-- **Retinal DR**: ~35,000 images  
-  Classes: No DR, Mild, Moderate, Severe, Proliferative  
-  *Source: Kaggle Diabetic Retinopathy Dataset*
-
 *All datasets preprocessed with augmentation and normalization.*
         """)
     
     # Model Architecture Info with WHY (Interview differentiator)
-    with st.expander("🧠 Model Architecture"):
+    with st.expander("Model Architecture"):
         st.markdown("""
-**Brain MRI** → EfficientNetB3
+**Brain MRI** → EfficientNetB0
 - Input: 224×224 grayscale
 - Transfer learning from ImageNet
 - Fine-tuned on brain tumor dataset
 
 **Chest X-Ray** → Xception-based CNN
-- Input: 224×224 grayscale
+- Input: 256×256 grayscale
 - Depthwise separable convolutions
 - Trained on Kaggle pneumonia dataset
-
-**Retinal Scan** → EfficientNet Ensemble
-- Input: 224×224 RGB
-- V2-S, B2, B0 ensemble (weighted avg)
-- Trained on Kaggle DR dataset
 
 ---
 **Why These Architectures?**
 
-✔ **EfficientNetB3 for Brain MRI**:  
+**EfficientNetB0 for Brain MRI**:  
 High accuracy with fewer parameters; excellent feature extraction for tumor boundaries in grayscale scans.
 
-✔ **Xception for Chest X-Ray**:  
+**Xception for Chest X-Ray**:  
 Handles texture-rich patterns (lung opacities); lightweight for real-time inference.
-
-✔ **Ensemble for Retina**:  
-Retinal images are highly detailed; ensemble improves stability and reduces false negatives in critical DR cases.
 
 *Architecture selection based on accuracy-speed-complexity tradeoff.*
         """)
     
     # Limitations section (Shows self-awareness - interviewers love this)
-    with st.expander("⚠️ Limitations"):
+    with st.expander("Limitations"):
         st.markdown("""
 **This system is NOT clinically validated.**
 
@@ -323,25 +274,18 @@ if not batch_mode:
     if disease_type:
         disease_banners = {
             "brain_mri": {
-                "title": "🧠 Brain Tumor Classifier",
+                "title": "Brain Tumor Classifier",
                 "subtitle": "AI-powered brain MRI analysis for tumor detection and classification",
                 "detects": "Glioma • Meningioma • Pituitary Tumor • No Tumor",
                 "input": "Upload a grayscale brain MRI scan (axial view preferred)",
                 "color": "#6366f1"
             },
             "pneumonia": {
-                "title": "🫁 Pneumonia Detector",
+                "title": "Pneumonia Detector",
                 "subtitle": "AI-powered chest X-ray analysis for pneumonia detection",
                 "detects": "Pneumonia • Normal Lungs",
                 "input": "Upload a chest X-ray image (frontal PA view)",
                 "color": "#06b6d4"
-            },
-            "retina": {
-                "title": "👁️ Diabetic Retinopathy Screener",
-                "subtitle": "AI-powered retinal scan analysis for diabetic retinopathy grading",
-                "detects": "No DR • Mild DR • Moderate DR • Severe DR • Proliferative DR",
-                "input": "Upload a color fundus photograph of the retina",
-                "color": "#10b981"
             }
         }
         
@@ -386,24 +330,7 @@ if not batch_mode:
             image_bytes = uploaded_file.read()
             st.session_state.uploaded_image_bytes = image_bytes
 
-            # =============================================
-            # AUTO-DETECT IMAGE TYPE
-            # =============================================
-            if auto_detect:
-                detection = detect_image_type(image_bytes)
-                detected_type = detection["detected_type"]
-                st.session_state.detected_type = detected_type
-                disease_type = detected_type
 
-                st.markdown(f"""
-<div class="auto-detect-box">
-<strong>Auto-Detection Result:</strong> {detected_type.replace('_', ' ').title()} 
-<span style="color: #10b981;">({detection['confidence']*100:.0f}% confidence)</span>
-<br><small>Brain MRI: {detection['all_scores'].get('brain_mri', 0)*100:.0f}% | 
-Chest X-Ray: {detection['all_scores'].get('pneumonia', 0)*100:.0f}% | 
-Retina: {detection['all_scores'].get('retina', 0)*100:.0f}%</small>
-</div>
-""", unsafe_allow_html=True)
 
             # =============================================
             # IMAGE PREPROCESSING PREVIEW
@@ -427,55 +354,23 @@ Retina: {detection['all_scores'].get('retina', 0)*100:.0f}%</small>
             # =============================================
             quality = check_image_quality(image_bytes)
 
-            # Enhanced retina quality check
-            if disease_type == "retina":
-                retina_quality = check_retina_quality(image_bytes)
-
-                with st.expander("Retina Image Quality Analysis", expanded=True):
-                    # Quality score gauge
-                    q_score = retina_quality.get("quality_score", 0)
-                    q_status = retina_quality.get("overall_status", "Unknown")
-
-                    st.markdown(f"**Overall Quality: {q_status}** ({q_score}/100)")
-                    st.progress(q_score / 100)
-
-                    # Individual metrics
-                    q1, q2 = st.columns(2)
-                    with q1:
-                        b = retina_quality.get("brightness", {})
-                        st.markdown(f"**Brightness:** {b.get('status', 'N/A')} ({b.get('value', 0)})")
-
-                        c = retina_quality.get("contrast", {})
-                        st.markdown(f"**Contrast:** {c.get('status', 'N/A')} ({c.get('value', 0)})")
-
-                    with q2:
-                        g = retina_quality.get("glare", {})
-                        st.markdown(f"**Glare:** {g.get('status', 'N/A')} ({g.get('value', 0)}%)")
-
-                        f = retina_quality.get("field_of_view", {})
-                        st.markdown(f"**Field of View:** {f.get('status', 'N/A')} ({f.get('value', 0)}%)")
-
-                    if q_score < 50:
-                        st.warning("Low quality image may affect prediction accuracy")
-            else:
-                # Standard quality check for other types
-                with st.expander("Image Quality Check", expanded=len(quality.get("issues", [])) > 0):
-                    q_col1, q_col2, q_col3 = st.columns(3)
-                    with q_col1:
-                        st.metric("Resolution", f"{quality['resolution'][0]}x{quality['resolution'][1]}")
-                    with q_col2:
-                        st.metric("File Size", f"{quality['file_size_mb']} MB")
-                    with q_col3:
-                        if quality.get('blur_score') is not None:
-                            st.metric("Sharpness", f"{quality['blur_score']:.0f}")
-                        else:
-                            st.metric("Sharpness", "N/A")
-
-                    if quality["issues"]:
-                        for issue in quality["issues"]:
-                            st.warning(issue)
+            with st.expander("Image Quality Check", expanded=len(quality.get("issues", [])) > 0):
+                q_col1, q_col2, q_col3 = st.columns(3)
+                with q_col1:
+                    st.metric("Resolution", f"{quality['resolution'][0]}x{quality['resolution'][1]}")
+                with q_col2:
+                    st.metric("File Size", f"{quality['file_size_mb']} MB")
+                with q_col3:
+                    if quality.get('blur_score') is not None:
+                        st.metric("Sharpness", f"{quality['blur_score']:.0f}")
                     else:
-                        st.success("Image quality looks good!")
+                        st.metric("Sharpness", "N/A")
+
+                if quality["issues"]:
+                    for issue in quality["issues"]:
+                        st.warning(issue)
+                else:
+                    st.success("Image quality looks good!")
 
             # Analyze button
             if st.button("Analyze Image", type="primary"):
@@ -509,7 +404,7 @@ Retina: {detection['all_scores'].get('retina', 0)*100:.0f}%</small>
         confidence = result.get("confidence", 0)
         predicted_class = result.get("predicted_class", "N/A")
         result_disease_type = result.get("disease_type", disease_type)
-        disease_names = {"brain_mri": "Brain MRI", "pneumonia": "Chest X-Ray", "retina": "Retinal"}
+        disease_names = {"brain_mri": "Brain MRI", "pneumonia": "Chest X-Ray"}
 
         # Get severity info
         disease_info = get_disease_info(result_disease_type)
@@ -543,7 +438,7 @@ Retina: {detection['all_scores'].get('retina', 0)*100:.0f}%</small>
             st.markdown(f'''
             <div style="background: rgba(16, 185, 129, 0.08); border-left: 3px solid #10b981; 
                         padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; font-size: 0.85rem;">
-                ⚡ <strong>Inference Time:</strong> {model_time:.0f} ms | 
+                <strong>Inference Time:</strong> {model_time:.0f} ms | 
                 <strong>Grad-CAM:</strong> {gradcam_time:.0f} ms | 
                 <strong>Total:</strong> {inference_time:.0f} ms
             </div>
@@ -571,8 +466,7 @@ Retina: {detection['all_scores'].get('retina', 0)*100:.0f}%</small>
                 formatted_name = class_name.replace('_', ' ').title()
                 if formatted_name.lower() == 'notumor':
                     formatted_name = 'No Tumor'
-                elif formatted_name.lower() == 'no dr':
-                    formatted_name = 'No DR'
+
                 
                 # Color coding based on probability
                 if display_prob >= 50:
@@ -608,7 +502,7 @@ Retina: {detection['all_scores'].get('retina', 0)*100:.0f}%</small>
         st.plotly_chart(fig, use_container_width=True)
         
         # Severity Score Methodology Explanation (for transparency/interviews)
-        with st.expander("ℹ️ How is Severity Score Calculated?"):
+        with st.expander("How is Severity Score Calculated?"):
             st.markdown("""
 **Severity Score Methodology**
 
@@ -636,7 +530,7 @@ severity = base_severity × (0.4 × confidence + 0.6 × heatmap_intensity)
 - Defensible methodology for medical AI applications
 
 ---
-⚠️ **Important Disclaimer:** *Severity score is NOT a medical diagnostic score — it is a model-derived estimate for interpretability purposes only.*
+**Important Disclaimer:** *Severity score is NOT a medical diagnostic score — it is a model-derived estimate for interpretability purposes only.*
             """)
 
 
@@ -658,35 +552,14 @@ severity = base_severity × (0.4 × confidence + 0.6 × heatmap_intensity)
             st.markdown(interpretation, unsafe_allow_html=True)
 
         # -------------------------------------------------
-        # SECTION 3: ENSEMBLE (Retina only)
-        # -------------------------------------------------
-        if result_disease_type == "retina" and result.get("individual_predictions"):
-            st.divider()
-            st.markdown('<p class="section-header">3. Ensemble Model Comparison</p>', unsafe_allow_html=True)
-
-            ind_preds = result["individual_predictions"]
-            if ind_preds:
-                model_data = []
-                for model_name, pred_data in ind_preds.items():
-                    if isinstance(pred_data, dict):
-                        model_data.append({
-                            "Model": model_name.replace("efficientnet", "EfficientNet").upper(),
-                            "Prediction": pred_data.get("predicted_class", "N/A"),
-                            "Confidence": f"{pred_data.get('confidence', 0)*100:.1f}%"
-                        })
-                if model_data:
-                    st.dataframe(pd.DataFrame(model_data), use_container_width=True, hide_index=True)
-
-        # -------------------------------------------------
-        # SECTION 4: GRAD-CAM
+        # SECTION 3: GRAD-CAM
         # -------------------------------------------------
         if generate_gradcam:
             st.divider()
-            section_num = "4" if result_disease_type == "retina" else "3"
-            st.markdown(f'<p class="section-header">{section_num}. Grad-CAM Visualization</p>', unsafe_allow_html=True)
+            st.markdown('<p class="section-header">3. Grad-CAM Visualization</p>', unsafe_allow_html=True)
 
             # Check if prediction is normal/healthy - Grad-CAM not meaningful for these
-            normal_classes = ["notumor", "no tumor", "normal", "no_dr", "no dr"]
+            normal_classes = ["notumor", "no tumor", "normal"]
             is_normal_case = predicted_class.lower().replace("_", " ") in normal_classes
             
             gradcam_url = result.get("gradcam_url")
@@ -708,7 +581,7 @@ severity = base_severity × (0.4 × confidence + 0.6 × heatmap_intensity)
                                 border: 1px solid #10b981; padding: 20px; 
                                 border-radius: 10px; text-align: center; height: 200px;
                                 display: flex; flex-direction: column; justify-content: center;">
-                        <span style="font-size: 48px;">✅</span>
+                        <span style="font-size: 48px;"></span>
                         <p style="color: #10b981; font-weight: bold; margin: 10px 0;">No Abnormality Detected</p>
                         <small style="color: #6b7280;">Grad-CAM heatmap is not shown for normal/healthy predictions 
                         as there are no pathological regions to highlight.</small>
@@ -732,8 +605,7 @@ severity = base_severity × (0.4 × confidence + 0.6 × heatmap_intensity)
 
             # Grad-CAM interpretation
             st.divider()
-            section_num = "5" if result_disease_type == "retina" else "4"
-            st.markdown(f'<p class="section-header">{section_num}. How to Read Grad-CAM</p>', unsafe_allow_html=True)
+            st.markdown('<p class="section-header">4. How to Read Grad-CAM</p>', unsafe_allow_html=True)
 
             gradcam_guide = get_gradcam_interpretation()
             guide_html = f"""
@@ -788,7 +660,7 @@ severity = base_severity × (0.4 × confidence + 0.6 × heatmap_intensity)
                         gradcam_bytes=gradcam_image_bytes
                     )
                     st.download_button(
-                        "📄 Download PDF Report",
+                        "Download PDF Report",
                         data=pdf_bytes,
                         file_name=f"medical_report_{result_disease_type}_{predicted_class.replace(' ', '_')}.pdf",
                         mime="application/pdf"
@@ -806,9 +678,7 @@ severity = base_severity × (0.4 × confidence + 0.6 × heatmap_intensity)
 else:
     st.markdown("### Batch Prediction")
 
-    if auto_detect:
-        st.warning("Auto-detect is disabled in batch mode. Please select analysis type manually in sidebar.")
-        disease_type = st.selectbox("Select type for batch:", ["brain_mri", "pneumonia", "retina"])
+    disease_type = st.selectbox("Select type for batch:", ["brain_mri", "pneumonia"])
 
     uploaded_files = st.file_uploader(
         "Upload multiple images",
@@ -965,14 +835,12 @@ else:
                     
                     # Model architecture info
                     model_architectures = {
-                        "brain_mri": "EfficientNetB3 (Transfer Learning)",
-                        "pneumonia": "Xception-based CNN",
-                        "retina": "EfficientNet Ensemble (V2-S + B2 + B0)"
+                        "brain_mri": "EfficientNetB0 (Transfer Learning)",
+                        "pneumonia": "Xception-based CNN"
                     }
                     disease_names_map = {
                         "brain_mri": "Brain MRI Analysis", 
-                        "pneumonia": "Chest X-Ray Analysis", 
-                        "retina": "Retinal Scan Analysis"
+                        "pneumonia": "Chest X-Ray Analysis"
                     }
 
                     class BatchPDF(FPDF):
@@ -1109,7 +977,7 @@ else:
                             pdf.cell(0, 6, f'{count} ({pct:.1f}%)', 0, 1)
 
                     st.download_button(
-                        "📄 Download Batch PDF Report",
+                        "Download Batch PDF Report",
                         data=bytes(pdf.output()),
                         file_name=f"batch_report_{disease_type}_{len(results)}_images.pdf",
                         mime="application/pdf"

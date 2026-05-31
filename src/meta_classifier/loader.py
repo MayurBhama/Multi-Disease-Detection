@@ -36,16 +36,6 @@ MODEL_CONFIGS = {
         "input_shape": (256, 256, 3),
         "num_classes": 2,
     },
-    "retina": {
-        "models": [
-            {"file": "efficientnet_v2s.weights.h5", "architecture": "efficientnetv2s"},
-            {"file": "efficientnet_b2.weights.h5", "architecture": "efficientnetb2"},
-            {"file": "efficientnet_b0.weights.h5", "architecture": "efficientnetb0"},
-        ],
-        "input_shape": (224, 224, 3),
-        "num_classes": 5,
-        "ensemble_weights": [0.333, 0.329, 0.338],
-    },
 }
 
 
@@ -143,37 +133,6 @@ def _build_pneumonia_model(input_shape: Tuple[int, int, int], num_classes: int) 
         raise ModelLoadError(f"Failed to build pneumonia architecture: {e}")
 
 
-def _build_efficientnet_model(
-    architecture: str, 
-    input_shape: Tuple[int, int, int], 
-    num_classes: int
-) -> tf.keras.Model:
-    """Build EfficientNet model for retina ensemble."""
-    
-    arch_map = {
-        "efficientnetv2s": tf.keras.applications.EfficientNetV2S,
-        "efficientnetb2": tf.keras.applications.EfficientNetB2,
-        "efficientnetb0": tf.keras.applications.EfficientNetB0,
-    }
-    
-    if architecture not in arch_map:
-        raise ValueError(f"Unknown architecture: {architecture}")
-    
-    try:
-        inputs = tf.keras.Input(shape=input_shape)
-        base = arch_map[architecture](
-            include_top=False, weights="imagenet", input_tensor=inputs, pooling="avg"
-        )
-        
-        x = tf.keras.layers.Dropout(0.3)(base.output)
-        x = tf.keras.layers.Dense(256, activation="relu")(x)
-        x = tf.keras.layers.Dropout(0.2)(x)
-        outputs = tf.keras.layers.Dense(num_classes, activation="softmax")(x)
-        
-        return tf.keras.Model(inputs, outputs, name=f"retina_{architecture}")
-    except Exception as e:
-        logger.error(f"Failed to build {architecture} model: {e}")
-        raise ModelLoadError(f"Failed to build {architecture} architecture: {e}")
 
 
 # =====================================================
@@ -198,8 +157,7 @@ class ModelLoader:
         Load a trained model with caching.
         
         Args:
-            disease_type: One of "brain_mri", "pneumonia", "retina"
-            model_key: For retina ensemble, specify which model
+            disease_type: One of "brain_mri", "pneumonia"
         
         Returns:
             Loaded Keras model with weights
@@ -229,17 +187,6 @@ class ModelLoader:
             elif disease_type == "pneumonia":
                 model = _build_pneumonia_model(config["input_shape"], config["num_classes"])
                 weights_path = os.path.join(self.models_dir, disease_type, config["model_file"])
-            
-            elif disease_type == "retina":
-                if model_key is None:
-                    raise ValueError("For retina, specify model_key (efficientnetv2s, efficientnetb2, efficientnetb0)")
-                
-                model_info = next((m for m in config["models"] if m["architecture"] == model_key), None)
-                if not model_info:
-                    raise ValueError(f"Unknown retina model: {model_key}")
-                
-                model = _build_efficientnet_model(model_key, config["input_shape"], config["num_classes"])
-                weights_path = os.path.join(self.models_dir, disease_type, model_info["file"])
             
             else:
                 raise ValueError(f"Unknown disease type: {disease_type}")

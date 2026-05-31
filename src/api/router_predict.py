@@ -40,18 +40,18 @@ def get_classifier() -> MetaClassifier:
 )
 async def predict(
     file: UploadFile = File(..., description="Image file to analyze"),
-    disease_type: str = Form(..., description="Disease type: brain_mri, pneumonia, or retina"),
+    disease_type: str = Form(..., description="Disease type: brain_mri or pneumonia"),
     generate_gradcam: bool = Form(False, description="Generate Grad-CAM overlay")
 ):
     """
     Predict disease from uploaded image.
     
     - **file**: Image file (PNG, JPG, JPEG)
-    - **disease_type**: One of `brain_mri`, `pneumonia`, `retina`
+    - **disease_type**: One of `brain_mri`, `pneumonia`
     - **generate_gradcam**: If true, generate Grad-CAM and return URL
     """
     # Validate disease type
-    valid_types = ["brain_mri", "pneumonia", "retina"]
+    valid_types = ["brain_mri", "pneumonia"]
     if disease_type not in valid_types:
         raise HTTPException(
             status_code=400,
@@ -101,15 +101,6 @@ async def predict(
                                 comp_path = comp_path[8:]
                             gradcam_comparison_url = f"/static/{comp_path.replace(os.sep, '/')}"
                     
-                    # Get individual predictions for retina ensemble
-                    individual_preds = None
-                    if disease_type == "retina" and "individual_heatmaps" in result.get("gradcam", {}):
-                        # Extract individual model info from result
-                        individual_preds = {}
-                        for key, data in result.get("gradcam", {}).get("individual_heatmaps", {}).items():
-                            if isinstance(data, dict):
-                                individual_preds[key] = data
-                    
                     return PredictionResponse(
                         disease_type=disease_type,
                         predicted_class=result["prediction"]["class"],
@@ -117,8 +108,7 @@ async def predict(
                         confidence=result["prediction"]["confidence"],
                         probabilities=result["prediction"]["probabilities"],
                         gradcam_url=gradcam_url,
-                        gradcam_comparison_url=gradcam_comparison_url,
-                        individual_predictions=individual_preds
+                        gradcam_comparison_url=gradcam_comparison_url
                     )
                 except Exception as gradcam_error:
                     # Grad-CAM failed, fall back to prediction only

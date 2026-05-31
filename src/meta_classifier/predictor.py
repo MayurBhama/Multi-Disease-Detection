@@ -7,7 +7,6 @@ Routes inference requests to appropriate disease-specific models.
 Supports:
 - brain_mri: Brain tumor classification (EfficientNetB0)
 - pneumonia: Chest X-ray classification (Xception)
-- retina: Diabetic retinopathy classification (EfficientNet Ensemble)
 
 Usage:
     from src.inference import MetaClassifier
@@ -19,9 +18,6 @@ Usage:
     
     # Pneumonia prediction
     result = classifier.predict("path/to/xray.png", disease_type="pneumonia")
-    
-    # Retina prediction (ensemble)
-    result = classifier.predict("path/to/fundus.png", disease_type="retina")
 """
 
 import os
@@ -31,7 +27,6 @@ import numpy as np
 import tensorflow as tf
 
 from .loader import ModelLoader, MODEL_CONFIGS
-from .retina_ensemble import RetinaEnsemble
 from .utils import (
     preprocess_brain_mri,
     preprocess_pneumonia,
@@ -52,7 +47,6 @@ class MetaClassifier:
     Routes predictions to disease-specific models:
     - brain_mri: EfficientNetB0 for brain tumor classification
     - pneumonia: Xception for chest X-ray classification
-    - retina: Ensemble of 3 EfficientNet models for DR
     
     Attributes:
         supported_diseases: List of supported disease types
@@ -66,7 +60,7 @@ class MetaClassifier:
         0.95
     """
     
-    SUPPORTED_DISEASES = ["brain_mri", "pneumonia", "retina"]
+    SUPPORTED_DISEASES = ["brain_mri", "pneumonia"]
     
     def __init__(self, models_dir: str = "models"):
         """
@@ -81,12 +75,10 @@ class MetaClassifier:
         # Disease-specific components
         self._brain_mri_model: Optional[tf.keras.Model] = None
         self._pneumonia_model: Optional[tf.keras.Model] = None
-        self._retina_ensemble: Optional[RetinaEnsemble] = None
         
         # Grad-CAM explainers (lazy loaded)
         self._brain_mri_gradcam = None
         self._pneumonia_gradcam = None
-        self._retina_gradcam = None
         
         # Cached configs
         self._configs: Dict[str, Dict] = {}
@@ -211,30 +203,6 @@ class MetaClassifier:
             logger.error(f"Pneumonia prediction failed: {e}")
             raise PredictionError(f"Pneumonia prediction failed: {e}")
     
-    def _predict_retina(self, image_path: str, return_individual: bool = False) -> Dict[str, Any]:
-        """
-        Predict diabetic retinopathy severity from fundus image.
-        
-        Classes: No DR, Mild, Moderate, Severe, Proliferative
-        
-        Uses ensemble of 3 EfficientNet models with weighted averaging.
-        """
-        # Initialize ensemble if not loaded
-        if self._retina_ensemble is None:
-            self._retina_ensemble = RetinaEnsemble()
-        
-        # Get prediction from ensemble
-        result = self._retina_ensemble.predict(image_path, return_individual=return_individual)
-        
-        # Add preprocessing config
-        result["preprocessing"] = self._get_preprocessing_config("retina")
-        result["model_info"] = {
-            "architecture": "EfficientNet Ensemble",
-            "num_classes": 5,
-            "ensemble_models": ["EfficientNetV2-S", "EfficientNetB2", "EfficientNetB0"]
-        }
-        
-        return result
     
     def predict(
         self,
@@ -247,8 +215,8 @@ class MetaClassifier:
         
         Args:
             image_path: Path to input image
-            disease_type: One of "brain_mri", "pneumonia", "retina"
-            **kwargs: Additional arguments (e.g., return_individual for retina)
+            disease_type: One of "brain_mri", "pneumonia"
+            **kwargs: Additional arguments
             
         Returns:
             Prediction result dictionary with schema:
@@ -278,9 +246,6 @@ class MetaClassifier:
             result = self._predict_brain_mri(image_path)
         elif disease_type == "pneumonia":
             result = self._predict_pneumonia(image_path)
-        elif disease_type == "retina":
-            return_individual = kwargs.get("return_individual", False)
-            result = self._predict_retina(image_path, return_individual=return_individual)
         else:
             raise ValueError(f"Unknown disease type: {disease_type}")
         
@@ -349,9 +314,9 @@ class MetaClassifier:
         
         Args:
             image_path: Path to input image
-            disease_type: One of "brain_mri", "pneumonia", "retina"
+            disease_type: One of "brain_mri", "pneumonia"
             save_dir: Directory to save Grad-CAM outputs (default: outputs/gradcam/{disease_type})
-            **kwargs: Additional args (e.g., return_individual for retina)
+            **kwargs: Additional arguments
             
         Returns:
             Dictionary with prediction + Grad-CAM paths:
@@ -376,7 +341,6 @@ class MetaClassifier:
         # Late import to avoid circular dependencies
         from .inference.brain_mri_gradcam import BrainMRIGradCAM
         from .inference.pneumonia_gradcam import PneumoniaGradCAM
-        from .inference.retina_gradcam import RetinaGradCAM
         
         if disease_type == "brain_mri":
             if self._brain_mri_gradcam is None:
@@ -388,13 +352,6 @@ class MetaClassifier:
                 self._pneumonia_gradcam = PneumoniaGradCAM(self.models_dir)
             result = self._pneumonia_gradcam.explain(image_path, save_dir=save_dir)
             
-        elif disease_type == "retina":
-            if self._retina_gradcam is None:
-                self._retina_gradcam = RetinaGradCAM(self.models_dir)
-            return_individual = kwargs.get("return_individual", True)
-            result = self._retina_gradcam.explain(
-                image_path, save_dir=save_dir, return_individual=return_individual
-            )
         else:
             raise ValueError(f"Unknown disease type: {disease_type}")
         
@@ -409,10 +366,8 @@ class MetaClassifier:
         """Clear all cached models and reload from disk."""
         self._brain_mri_model = None
         self._pneumonia_model = None
-        self._retina_ensemble = None
         self._brain_mri_gradcam = None
         self._pneumonia_gradcam = None
-        self._retina_gradcam = None
         self._configs.clear()
         self.loader.clear_cache()
         logger.info("MetaClassifier cache cleared")
@@ -435,7 +390,7 @@ def predict(
     
     Args:
         image_path: Path to input image
-        disease_type: One of "brain_mri", "pneumonia", "retina"
+        disease_type: One of "brain_mri", "pneumonia"
         
     Returns:
         Prediction result dictionary

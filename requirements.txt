@@ -6,7 +6,6 @@ fastapi
 uvicorn
 streamlit
 scikit-learn
-albumentations
 pydantic
 matplotlib
 tqdm

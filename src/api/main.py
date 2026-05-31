@@ -48,15 +48,13 @@ app = FastAPI(
     description="""
     ## Production API for Medical Image Classification
     
-    Supports three disease types:
+    Supports two disease types:
     - **Brain MRI**: Tumor classification (glioma, meningioma, notumor, pituitary)
     - **Pneumonia**: Chest X-ray classification (NORMAL, PNEUMONIA)
-    - **Retina**: Diabetic retinopathy severity (No DR, Mild, Moderate, Severe, Proliferative)
     
     ### Features
     - Image prediction with confidence scores
     - Grad-CAM explainability visualizations
-    - EfficientNet ensemble for retina analysis
     """,
     version="1.0.0",
     lifespan=lifespan,

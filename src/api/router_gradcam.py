@@ -31,7 +31,7 @@ from src.api.router_predict import get_classifier
 )
 async def gradcam(
     file: UploadFile = File(..., description="Image file to analyze"),
-    disease_type: str = Form(..., description="Disease type: brain_mri, pneumonia, or retina")
+    disease_type: str = Form(..., description="Disease type: brain_mri or pneumonia")
 ):
     """
     Generate Grad-CAM visualization for uploaded image.
@@ -42,7 +42,7 @@ async def gradcam(
     - Comparison image (original | heatmap | overlay)
     """
     # Validate disease type
-    valid_types = ["brain_mri", "pneumonia", "retina"]
+    valid_types = ["brain_mri", "pneumonia"]
     if disease_type not in valid_types:
         raise HTTPException(
             status_code=400,
