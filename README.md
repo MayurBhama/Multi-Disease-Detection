@@ -2,7 +2,7 @@
 
 AI-powered medical image analysis system utilizing deep learning to diagnose Brain MRIs and Chest X-Rays. The system provides clinical-grade explainability using Grad-CAM visualizations.
 
-**Live Demo:** Previously hosted on Streamlit (currently taken down).  
+**Live Demo:** Hosted on Streamlit. ( https://multi-disease-detectiongit-vc6m2gtxwyzqvfryrco578.streamlit.app/ )  
 **GitHub Repository:** [MayurBhama/Multi-Disease-Detection](https://github.com/MayurBhama/Multi-Disease-Detection)
 
 ---
